@@ -1,5 +1,5 @@
 from app import app, db
-from flask import render_template, request, jsonify, redirect, url_for
+from flask import render_template, request, jsonify, redirect, url_for, flash
 from models import EtlMetadata, EtlMapping, EtlTemplate, EtlDagHistory
 
 from services.metadata_service import MetadataService
@@ -154,10 +154,34 @@ def settings():
             config_data['schema_db'] = request.form.get('schema_db_net')
             
         if ConfigManager.save_config(config_data):
-            # In a real app we might flash a message
-            pass
+            # Hot reload the DB connection
+            new_uri = ConfigManager.get_db_uri(config_data)
+            app.config['SQLALCHEMY_DATABASE_URI'] = new_uri
+            
+            # Dispose of the old engine to force a new connection on next request
+            try:
+                db.engine.dispose()
+                print(f"DEBUG: Database connection reloaded to {new_uri}")
+            except Exception as e:
+                print(f"ERROR: Failed to dispose engine: {e}")
+                
+            flash('Settings saved successfully!', 'success')
             
         return redirect(url_for('settings'))
 
     config = ConfigManager.load_config()
     return render_template('settings.html', config=config)
+
+@app.route('/settings/test', methods=['POST'])
+def test_settings_connection():
+    data = request.json
+    uri = ConfigManager.get_db_uri(data)
+    
+    from sqlalchemy import create_engine, text
+    try:
+        engine = create_engine(uri)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return jsonify({"success": True, "message": "Connection successful!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})

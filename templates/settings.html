@@ -70,6 +70,9 @@
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-secondary me-md-2" onclick="testConnection()">
+                                <i class="fas fa-plug me-2"></i>Test Connection
+                            </button>
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save me-2"></i>Save Settings
                             </button>
@@ -94,6 +97,51 @@
             fileFields.style.display = 'none';
             networkFields.style.display = 'block';
         }
+    }
+
+    function testConnection() {
+        const dbType = document.getElementById('db_type').value;
+        const data = {
+            db_type: dbType,
+            host: document.getElementById('host').value,
+            port: document.getElementById('port').value,
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            schema_db_file: document.getElementById('schema_db_file').value,
+            schema_db_net: document.getElementById('schema_db_net').value,
+            // Map to what backend expects for schema_db based on type
+            schema_db: dbType === 'sqlite' ? document.getElementById('schema_db_file').value : document.getElementById('schema_db_net').value
+        };
+
+        // Show loading state
+        const btn = document.querySelector('button[onclick="testConnection()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Testing...';
+        btn.disabled = true;
+
+        fetch('/settings/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Connection Successful!');
+                } else {
+                    alert('Connection Failed: ' + data.message);
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('An error occurred while testing the connection.');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
     }
 
     // Initial call
