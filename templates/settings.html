@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-cog me-2"></i>Metadata Database Settings</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Changing the metadata database requires an application restart to take effect.
+                    </div>
+
+                    <form method="POST" action="/settings">
+                        <div class="mb-3">
+                            <label for="db_type" class="form-label">Database Type</label>
+                            <select class="form-select" id="db_type" name="db_type" onchange="toggleFields()">
+                                <option value="sqlite" {% if config.db_type=='sqlite' %}selected{% endif %}>SQLite
+                                </option>
+                                <option value="oracle" {% if config.db_type=='oracle' %}selected{% endif %}>Oracle
+                                </option>
+                                <option value="postgresql" {% if config.db_type=='postgresql' %}selected{% endif %}>
+                                    PostgreSQL</option>
+                                <option value="mysql" {% if config.db_type=='mysql' %}selected{% endif %}>MySQL</option>
+                            </select>
+                        </div>
+
+                        <div id="file_fields" class="mb-3">
+                            <label for="schema_db_file" class="form-label">Database Filename (for SQLite)</label>
+                            <input type="text" class="form-control" id="schema_db_file" name="schema_db_file"
+                                value="{{ config.schema_db if config.db_type == 'sqlite' else 'etl_metadata.db' }}">
+                            <div class="form-text">Filename in 'instance' folder or absolute path.</div>
+                        </div>
+
+                        <div id="network_fields" style="display: none;">
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label for="host" class="form-label">Host</label>
+                                    <input type="text" class="form-control" id="host" name="host"
+                                        value="{{ config.host }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="port" class="form-label">Port</label>
+                                    <input type="text" class="form-control" id="port" name="port"
+                                        value="{{ config.port }}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="schema_db_net" class="form-label">Database Name / Service Name</label>
+                                <input type="text" class="form-control" id="schema_db_net" name="schema_db_net"
+                                    value="{{ config.schema_db if config.db_type != 'sqlite' else '' }}">
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="username" name="username"
+                                        value="{{ config.username }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="password" class="form-label">Password</label>
+                                    <input type="password" class="form-control" id="password" name="password"
+                                        value="{{ config.password }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleFields() {
+        const dbType = document.getElementById('db_type').value;
+        const fileFields = document.getElementById('file_fields');
+        const networkFields = document.getElementById('network_fields');
+
+        if (dbType === 'sqlite') {
+            fileFields.style.display = 'block';
+            networkFields.style.display = 'none';
+        } else {
+            fileFields.style.display = 'none';
+            networkFields.style.display = 'block';
+        }
+    }
+
+    // Initial call
+    toggleFields();
+</script>
+{% endblock %}

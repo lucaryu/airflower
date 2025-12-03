@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <h3>Generate DAG</h3>
+        <div class="card p-3">
+            <form method="POST" action="/history">
+                <input type="hidden" name="action" value="generate">
+                <div class="mb-3">
+                    <label class="form-label">Select Mapping</label>
+                    <select class="form-select" name="mapping_id" required>
+                        {% for m in mappings %}
+                        <option value="{{ m.id }}">Mapping #{{ m.id }} (Source: {{ m.source_table_id }} -> Target: {{
+                            m.target_table_id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Select Template</label>
+                    <select class="form-select" name="template_id" required>
+                        {% for t in templates %}
+                        <option value="{{ t.id }}">{{ t.template_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success w-100">Generate</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <h3>Generation History</h3>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>DAG ID</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in history %}
+                <tr>
+                    <td>{{ h.dag_id }}</td>
+                    <td>{{ h.created_at }}</td>
+                    <td>
+                        <a href="/dag/code/{{ h.id }}" class="btn btn-sm btn-info" target="_blank">View Code</a>
+                        <!-- Add Download/View Mapping buttons here -->
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">No history found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

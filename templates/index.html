@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="mb-4">Dashboard</h2>
+<div class="row g-4">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body text-center">
+                <div class="display-4 text-primary mb-3"><i class="fas fa-database"></i></div>
+                <h5 class="card-title">Metadata</h5>
+                <p class="card-text text-muted">Manage source and target table definitions.</p>
+                <a href="/metadata" class="btn btn-outline-primary stretched-link">Go to Metadata</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body text-center">
+                <div class="display-4 text-success mb-3"><i class="fas fa-exchange-alt"></i></div>
+                <h5 class="card-title">Mapping</h5>
+                <p class="card-text text-muted">Define column mappings and transformations.</p>
+                <a href="/mapping" class="btn btn-outline-success stretched-link">Go to Mapping</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body text-center">
+                <div class="display-4 text-warning mb-3"><i class="fas fa-file-code"></i></div>
+                <h5 class="card-title">Templates</h5>
+                <p class="card-text text-muted">Manage Airflow DAG templates.</p>
+                <a href="/templates" class="btn btn-outline-warning stretched-link">Go to Templates</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 shadow-sm border-0">
+            <div class="card-body text-center">
+                <div class="display-4 text-info mb-3"><i class="fas fa-history"></i></div>
+                <h5 class="card-title">History</h5>
+                <p class="card-text text-muted">View generated DAGs and history.</p>
+                <a href="/history" class="btn btn-outline-info stretched-link">Go to History</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

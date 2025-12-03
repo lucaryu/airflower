@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETL Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --main-bg-color: #f8f9fa;
+            --sidebar-width: 250px;
+            --sidebar-bg: #212529;
+            --sidebar-text: #fff;
+        }
+
+        body {
+            overflow-x: hidden;
+            background-color: var(--main-bg-color);
+        }
+
+        #wrapper {
+            display: flex;
+            width: 100%;
+            height: calc(100vh - 56px);
+            /* Adjust for fixed navbar */
+            margin-top: 56px;
+            position: relative;
+        }
+
+        #sidebar-wrapper {
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            background-color: var(--sidebar-bg);
+            color: var(--sidebar-text);
+            transition: margin 0.3s ease-in-out;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        #sidebar-wrapper .sidebar-heading {
+            padding: 1.5rem 1.25rem;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #sidebar-wrapper .list-group-item {
+            background-color: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            border: none;
+            padding: 1rem 1.25rem;
+        }
+
+        #sidebar-wrapper .list-group-item:hover,
+        #sidebar-wrapper .list-group-item.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        #page-content-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .navbar {
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Boundary Toggle Button */
+        #boundary-toggle {
+            position: fixed;
+            top: 50%;
+            left: var(--sidebar-width);
+            transform: translateY(-50%);
+            width: 24px;
+            height: 48px;
+            background-color: var(--sidebar-bg);
+            color: #fff;
+            border-top-right-radius: 12px;
+            border-bottom-right-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            transition: left 0.3s ease-in-out;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #boundary-toggle:hover {
+            background-color: #343a40;
+        }
+
+        /* Toggled State */
+        #wrapper.toggled #sidebar-wrapper {
+            margin-left: -250px;
+        }
+
+        #wrapper.toggled #boundary-toggle {
+            left: 0;
+        }
+    </style>
+</head>
+
+<body>
+    {% set active_module = 'home' %}
+    {% if request.path.startswith('/connections') or request.path.startswith('/metadata') or
+    request.path.startswith('/mapping') %}
+    {% set active_module = 'design' %}
+    {% elif request.path.startswith('/templates') %}
+    {% set active_module = 'development' %}
+    {% elif request.path.startswith('/history') %}
+    {% set active_module = 'monitoring' %}
+    {% endif %}
+
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top" style="z-index: 1030;">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><i class="fas fa-project-diagram me-2"></i>ETL Manager</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="topNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if active_module == 'home' }}" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if active_module == 'design' }}" href="/connections">Design</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if active_module == 'development' }}"
+                            href="/templates">Development</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ 'active' if active_module == 'monitoring' }}"
+                            href="/history">Monitoring</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center text-white">
+                    <a href="/settings" class="text-white me-3 text-decoration-none" title="Settings">
+                        <i class="fas fa-cog fa-lg"></i>
+                    </a>
+                    <span class="me-2">Admin User</span>
+                    <i class="fas fa-user-circle fa-lg"></i>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="wrapper">
+        <!-- Sidebar -->
+        <div id="sidebar-wrapper">
+            <div class="list-group list-group-flush mt-3">
+                {% if active_module == 'home' %}
+                <a href="/" class="list-group-item list-group-item-action {{ 'active' if request.path == '/' }}">
+                    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                </a>
+                {% elif active_module == 'design' %}
+                <a href="/connections"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/connections') }}">
+                    <i class="fas fa-network-wired me-2"></i>Connections
+                </a>
+                <a href="/metadata"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/metadata') }}">
+                    <i class="fas fa-database me-2"></i>Metadata
+                </a>
+                <a href="/mapping"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/mapping') }}">
+                    <i class="fas fa-exchange-alt me-2"></i>Mapping
+                </a>
+                {% elif active_module == 'development' %}
+                <a href="/templates"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/templates') }}">
+                    <i class="fas fa-file-code me-2"></i>Templates
+                </a>
+                {% elif active_module == 'monitoring' %}
+                <a href="/history"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/history') }}">
+                    <i class="fas fa-history me-2"></i>History
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Boundary Toggle Button -->
+        <div id="boundary-toggle" title="Toggle Sidebar">
+            <i class="fas fa-chevron-left" id="toggle-icon"></i>
+        </div>
+
+        <!-- Page Content -->
+        <div id="page-content-wrapper">
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+                <div class="container-fluid">
+                    <!-- Old toggle button removed -->
+                    <div class="ms-auto d-flex align-items-center">
+                        <span class="text-muted small me-2">Current Module: {{ active_module|capitalize }}</span>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container-fluid px-4 py-4">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById("boundary-toggle").onclick = function () {
+            var wrapper = document.getElementById("wrapper");
+            var icon = document.getElementById("toggle-icon");
+
+            wrapper.classList.toggle("toggled");
+
+            if (wrapper.classList.contains("toggled")) {
+                icon.classList.remove("fa-chevron-left");
+                icon.classList.add("fa-chevron-right");
+            } else {
+                icon.classList.remove("fa-chevron-right");
+                icon.classList.add("fa-chevron-left");
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+{
+    "db_type": "sqlite",
+    "host": "",
+    "port": "",
+    "username": "",
+    "password": "",
+    "schema_db": "etl_metadata.db"
+}

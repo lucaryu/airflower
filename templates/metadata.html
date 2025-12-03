@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <!-- Left Column: Source Table List -->
+    <div class="col-md-4">
+        <h3>Oracle Source Tables</h3>
+        <div class="mb-3">
+            <input type="text" id="sourceSearch" class="form-control" placeholder="Search source tables...">
+        </div>
+        <div class="list-group" id="sourceList" style="max-height: 600px; overflow-y: auto;">
+            {% for table in source_tables %}
+            <a href="#" class="list-group-item list-group-item-action source-item" data-name="{{ table.table_name }}"
+                onclick="selectSourceTable('{{ table.table_name }}')" style="display: none;">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <h5 class="mb-1">{{ table.table_name }}</h5>
+                    <small class="text-muted">{{ table.columns | length }} columns</small>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Middle Column: Selected Table Details & Actions -->
+    <div class="col-md-4">
+        <h3>Action</h3>
+        <div id="actionPanel" class="card">
+            <div class="card-body text-center text-muted">
+                Select a source table to proceed.
+            </div>
+        </div>
+
+        <h4 class="mt-4">Source Columns</h4>
+        <div id="columnList" class="card" style="max-height: 400px; overflow-y: auto;">
+            <!-- Columns will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Right Column: Target Tables -->
+    <div class="col-md-4">
+        <h3>PostgreSQL Targets</h3>
+        <div class="mb-3">
+            <input type="text" id="targetSearch" class="form-control" placeholder="Search target tables...">
+        </div>
+        <div class="list-group" id="targetList" style="max-height: 600px; overflow-y: auto;">
+            {% for table in target_tables %}
+            <div class="list-group-item list-group-item-action target-item" data-name="{{ table.table_name }}"
+                style="display: none;">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">{{ table.table_name }}</h5>
+                        <small class="text-muted">{{ table.schema_info | length }} columns</small>
+                    </div>
+                    <form method="POST" action="/metadata" onsubmit="return confirm('Delete {{ table.table_name }}?');">
+                        <input type="hidden" name="action" value="delete_target">
+                        <input type="hidden" name="target_table" value="{{ table.table_name }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-muted ms-2">No target tables defined.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const sourceTables = {{ source_tables | tojson }};
+    const targetTables = {{ target_tables | tojson }};
+
+    // Search Source
+    document.getElementById('sourceSearch').addEventListener('keyup', function () {
+        filterList('source-item', this.value);
+    });
+
+    // Search Target
+    document.getElementById('targetSearch').addEventListener('keyup', function () {
+        filterList('target-item', this.value);
+    });
+
+    function filterList(className, value) {
+        const filter = value.toUpperCase().trim();
+        document.querySelectorAll('.' + className).forEach(item => {
+            if (filter === "") {
+                item.style.display = "none";
+            } else {
+                const txt = item.getAttribute('data-name');
+                item.style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+            }
+        });
+    }
+
+    function selectSourceTable(tableName) {
+        const sourceTable = sourceTables.find(t => t.table_name === tableName);
+        if (!sourceTable) return;
+
+        // Highlight source
+        document.querySelectorAll('.source-item').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.source-item[data-name="${tableName}"]`).classList.add('active');
+
+        // Check if target exists
+        const targetExists = targetTables.find(t => t.table_name === tableName);
+
+        // Render Action Panel
+        let actionHtml = `
+            <h5 class="card-title">${tableName}</h5>
+            <p class="card-text">
+                Target Status: 
+                ${targetExists ?
+                '<span class="badge bg-success">Exists</span>' :
+                '<span class="badge bg-secondary">Not Found</span>'}
+            </p>
+        `;
+
+        if (targetExists) {
+            actionHtml += `
+                <div class="d-grid gap-2">
+                    <a href="/mapping" class="btn btn-outline-primary">Go to Mapping</a>
+                    <div class="btn-group" role="group">
+                        <form method="POST" action="/metadata" class="w-100" onsubmit="return confirm('Are you sure you want to recreate? This will overwrite the existing target schema.');">
+                            <input type="hidden" name="action" value="create_target">
+                            <input type="hidden" name="source_table" value="${tableName}">
+                            <button type="submit" class="btn btn-warning w-100">Recreate Target</button>
+                        </form>
+                        <form method="POST" action="/metadata" class="w-100" onsubmit="return confirm('Are you sure you want to delete this target table?');">
+                            <input type="hidden" name="action" value="delete_target">
+                            <input type="hidden" name="target_table" value="${tableName}">
+                            <button type="submit" class="btn btn-danger w-100">Delete Target</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        } else {
+            actionHtml += `
+                <form method="POST" action="/metadata">
+                    <input type="hidden" name="action" value="create_target">
+                    <input type="hidden" name="source_table" value="${tableName}">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Create Target Table</button>
+                    </div>
+                </form>
+            `;
+        }
+        document.getElementById('actionPanel').innerHTML = `<div class="card-body">${actionHtml}</div>`;
+
+        // Render Columns
+        let colHtml = `
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr><th>Col</th><th>Type</th><th>PK</th><th>Null</th></tr>
+                </thead>
+                <tbody>
+        `;
+        sourceTable.columns.forEach(col => {
+            colHtml += `
+                <tr>
+                    <td>${col.name}</td>
+                    <td>${col.type}</td>
+                    <td>${col.pk ? 'Y' : ''}</td>
+                    <td>${col.nullable ? 'Y' : 'N'}</td>
+                </tr>
+            `;
+        });
+        colHtml += '</tbody></table>';
+        document.getElementById('columnList').innerHTML = colHtml;
+    }
+</script>
+{% endblock %}

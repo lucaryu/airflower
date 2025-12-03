@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <h3>Existing Templates</h3>
+        <div class="list-group">
+            {% for t in templates %}
+            <a href="#" class="list-group-item list-group-item-action"
+                onclick="loadTemplate('{{ t.template_name }}', '{{ t.template_type }}', `{{ t.template_content }}`)">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ t.template_name }}</h5>
+                    <small>{{ t.template_type }}</small>
+                </div>
+            </a>
+            {% else %}
+            <p>No templates found.</p>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="col-md-8">
+        <h3>Create/Edit Template</h3>
+        <form method="POST" action="/templates">
+            <div class="mb-3">
+                <label class="form-label">Template Name</label>
+                <input type="text" class="form-control" name="name" id="tmplName" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Template Type</label>
+                <select class="form-select" name="type" id="tmplType">
+                    <option value="ORACLE_TO_POSTGRES">Oracle -> PostgreSQL</option>
+                    <option value="ORACLE_TO_S3_TO_POSTGRES">Oracle -> S3 -> PostgreSQL</option>
+                    <option value="ORACLE_TO_S3">Oracle -> S3</option>
+                    <option value="MYSQL_TO_S3_TO_ORACLE">MySQL -> S3 -> Oracle</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Jinja2 Content</label>
+                <textarea class="form-control" name="content" id="tmplContent" rows="15" style="font-family: monospace;"
+                    required>
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime
+
+default_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2023, 1, 1),
+}
+
+with DAG('{{ dag_id }}', default_args=default_args, schedule_interval='@daily') as dag:
+    # Define tasks here
+    pass
+</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Template</button>
+            <button type="button" class="btn btn-secondary" onclick="resetForm()">Clear</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function loadTemplate(name, type, content) {
+        document.getElementById('tmplName').value = name;
+        document.getElementById('tmplType').value = type;
+        document.getElementById('tmplContent').value = content;
+    }
+
+    function resetForm() {
+        document.getElementById('tmplName').value = '';
+        document.getElementById('tmplType').value = 'ORACLE_TO_POSTGRES';
+        document.getElementById('tmplContent').value = '';
+    }
+</script>
+{% endblock %}

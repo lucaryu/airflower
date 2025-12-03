@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Mapping Definition</h2>
+
+    <div class="row mb-4">
+        <div class="col-md-5">
+            <label>Source Table</label>
+            <select id="sourceSelect" class="form-select">
+                <option value="">Select Source...</option>
+                {% for s in sources %}
+                <option value="{{ s.table_name }}" data-cols='{{ s.columns | tojson }}'>{{ s.table_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 text-center align-self-end">
+            <i class="bi bi-arrow-right"></i>
+        </div>
+        <div class="col-md-5">
+            <label>Target Table</label>
+            <select id="targetSelect" class="form-select">
+                <option value="">Select Target...</option>
+                {% for t in targets %}
+                <option value="{{ t.id }}" data-cols='{{ t.schema_info | tojson }}'>{{ t.table_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div id="mappingArea" style="display:none;">
+        <h4>Column Mappings</h4>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Source Column</th>
+                    <th>Target Column</th>
+                    <th>Transformation Rule</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="mappingTableBody">
+                <!-- Rows will be added here -->
+            </tbody>
+        </table>
+        <button class="btn btn-secondary" onclick="addMappingRow()">Add Row</button>
+        <button class="btn btn-primary float-end" onclick="saveMapping()">Save Mapping</button>
+    </div>
+</div>
+
+<script>
+    let sourceCols = [];
+    let targetCols = [];
+
+    document.getElementById('sourceSelect').addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (opt.value) {
+            sourceCols = JSON.parse(opt.getAttribute('data-cols'));
+            checkShowMapping();
+        }
+    });
+
+    document.getElementById('targetSelect').addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (opt.value) {
+            targetCols = JSON.parse(opt.getAttribute('data-cols'));
+            checkShowMapping();
+        }
+    });
+
+    function checkShowMapping() {
+        if (document.getElementById('sourceSelect').value && document.getElementById('targetSelect').value) {
+            document.getElementById('mappingArea').style.display = 'block';
+            // Auto-populate based on name match?
+            if (document.getElementById('mappingTableBody').children.length === 0) {
+                autoMap();
+            }
+        }
+    }
+
+    function autoMap() {
+        const tbody = document.getElementById('mappingTableBody');
+        tbody.innerHTML = '';
+
+        targetCols.forEach(tCol => {
+            const sCol = sourceCols.find(s => s.name === tCol.name);
+            addMappingRow(sCol ? sCol.name : '', tCol.name);
+        });
+    }
+
+    function addMappingRow(sVal = '', tVal = '') {
+        const tbody = document.getElementById('mappingTableBody');
+        const tr = document.createElement('tr');
+
+        let sOptions = '<option value="">(None)</option>';
+        sourceCols.forEach(c => {
+            sOptions += `<option value="${c.name}" ${c.name === sVal ? 'selected' : ''}>${c.name} (${c.type})</option>`;
+        });
+
+        let tOptions = '<option value="">(None)</option>';
+        targetCols.forEach(c => {
+            tOptions += `<option value="${c.name}" ${c.name === tVal ? 'selected' : ''}>${c.name} (${c.type})</option>`;
+        });
+
+        tr.innerHTML = `
+            <td><select class="form-select source-col">${sOptions}</select></td>
+            <td><select class="form-select target-col">${tOptions}</select></td>
+            <td>
+                <select class="form-select rule-type" onchange="toggleCustomInput(this)">
+                    <option value="DIRECT">Direct Copy</option>
+                    <option value="NVL">NVL(col, 0)</option>
+                    <option value="CUSTOM">Custom SQL</option>
+                </select>
+                <input type="text" class="form-control mt-1 custom-sql" style="display:none;" placeholder="e.g. CASE WHEN...">
+            </td>
+            <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    function toggleCustomInput(select) {
+        const input = select.nextElementSibling;
+        input.style.display = select.value === 'CUSTOM' ? 'block' : 'none';
+    }
+
+    function saveMapping() {
+        const rows = document.querySelectorAll('#mappingTableBody tr');
+        const mappings = [];
+        rows.forEach(tr => {
+            const sCol = tr.querySelector('.source-col').value;
+            const tCol = tr.querySelector('.target-col').value;
+            const rule = tr.querySelector('.rule-type').value;
+            const custom = tr.querySelector('.custom-sql').value;
+
+            if (tCol) {
+                mappings.push({
+                    source_column: sCol,
+                    target_column: tCol,
+                    rule_type: rule,
+                    custom_sql: custom
+                });
+            }
+        });
+
+        const data = {
+            source_table_id: document.getElementById('sourceSelect').value, // Using name as ID for source mock
+            target_table_id: document.getElementById('targetSelect').value,
+            mappings: mappings
+        };
+
+        fetch('/mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+            .then(r => r.json())
+            .then(d => {
+                alert('Mapping Saved!');
+            });
+    }
+</script>
+{% endblock %}
