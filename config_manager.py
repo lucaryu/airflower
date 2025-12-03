@@ -151,8 +151,8 @@ class ConfigManager:
             return f'sqlite:///{db_path}'
             
         elif db_type == 'oracle':
-            # oracle+pypyodbc://user:password@host:port/?service_name=sid
-            return f"oracle+pypyodbc://{config['username']}:{config['password']}@{config['host']}:{config['port']}/?service_name={config['schema_db']}"
+            # oracle+oracledb://user:password@host:port/?service_name=sid
+            return f"oracle+oracledb://{config['username']}:{config['password']}@{config['host']}:{config['port']}/?service_name={config['schema_db']}"
             
         elif db_type == 'mysql':
             # mysql+pymysql://user:password@host:port/dbname

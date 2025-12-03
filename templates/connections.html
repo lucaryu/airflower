@@ -20,6 +20,13 @@
                     {% else %}
                     <span class="badge bg-primary">PostgreSQL</span>
                     {% endif %}
+                    {% if conn.role == 'SOURCE' %}
+                    <span class="badge bg-info text-dark ms-1">Source</span>
+                    {% elif conn.role == 'TARGET' %}
+                    <span class="badge bg-warning text-dark ms-1">Target</span>
+                    {% else %}
+                    <span class="badge bg-secondary ms-1">Unused</span>
+                    {% endif %}
                 </div>
                 <p class="card-text text-muted small mb-3">
                     <i class="fas fa-server me-1"></i> {{ conn.host }}:{{ conn.port }}<br>
@@ -71,6 +78,14 @@
                             <option value="POSTGRES">PostgreSQL</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select name="role" class="form-select" required>
+                            <option value="UNUSED">Unused</option>
+                            <option value="SOURCE">Source</option>
+                            <option value="TARGET">Target</option>
+                        </select>
+                    </div>
                     <div class="row g-2">
                         <div class="col-md-8">
                             <div class="mb-3">
@@ -107,13 +122,71 @@
     </div>
 </div>
 
+<!-- Test Result Modal -->
+<div class="modal fade" id="testResultModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Connection Test Result</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="testSpinner" class="spinner-border text-primary mb-3" role="status" style="display: none;">
+                    <span class="visually-hidden">Testing...</span>
+                </div>
+                <div id="testResultContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     function testConnection(id) {
-        // In a real scenario, we'd pass the ID to the backend to look up credentials and test.
-        // Since we didn't implement 'test by ID' in the route yet (only by raw data for new ones usually),
-        // let's just mock the alert for now or implement a specific route for testing existing ID.
-        // For this demo, let's just show a success message.
-        alert("Connection test successful! (Mock)");
+        const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
+        const contentDiv = document.getElementById('testResultContent');
+        const spinner = document.getElementById('testSpinner');
+        const modalTitle = document.querySelector('#testResultModal .modal-title');
+        const modalHeader = document.querySelector('#testResultModal .modal-header');
+
+        // Reset modal state
+        contentDiv.innerHTML = 'Testing connection...';
+        spinner.style.display = 'block';
+        modalTitle.textContent = 'Testing Connection';
+        modalHeader.className = 'modal-header'; // Reset colors
+        modal.show();
+
+        fetch('/connections', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'test',
+                id: id
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                spinner.style.display = 'none';
+                if (data.success) {
+                    modalTitle.textContent = 'Success';
+                    modalHeader.classList.add('bg-success', 'text-white');
+                    contentDiv.innerHTML = `<div class="text-success"><i class="fas fa-check-circle fa-3x mb-3"></i><p class="lead">${data.message}</p></div>`;
+                } else {
+                    modalTitle.textContent = 'Failed';
+                    modalHeader.classList.add('bg-danger', 'text-white');
+                    contentDiv.innerHTML = `<div class="text-danger"><i class="fas fa-times-circle fa-3x mb-3"></i><p class="lead">Connection Failed</p><p class="small text-muted text-break">${data.message}</p></div>`;
+                }
+            })
+            .catch(error => {
+                spinner.style.display = 'none';
+                modalTitle.textContent = 'Error';
+                modalHeader.classList.add('bg-warning');
+                contentDiv.innerHTML = `<p>An error occurred: ${error}</p>`;
+            });
     }
 </script>
 {% endblock %}

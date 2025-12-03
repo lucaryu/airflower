@@ -7,6 +7,7 @@ class ConnectionService:
     def save_connection(self, data):
         conn = EtlConnection(
             name=data['name'],
+            role=data.get('role', 'UNUSED'),
             type=data['type'],
             host=data['host'],
             port=int(data['port']),
@@ -27,8 +28,27 @@ class ConnectionService:
         return False
 
     def test_connection(self, data):
-        # Mock connection test
-        # In real app, try connecting with cx_Oracle or psycopg2
-        import time
-        time.sleep(1) # Simulate network delay
-        return True, "Connection Successful!"
+        from sqlalchemy import create_engine, text
+        
+        try:
+            # Construct URI based on type
+            db_type = data.get('type', '').upper()
+            uri = ""
+            
+            if db_type == 'ORACLE':
+                # oracle+oracledb://user:password@host:port/?service_name=sid
+                uri = f"oracle+oracledb://{data['username']}:{data['password']}@{data['host']}:{data['port']}/?service_name={data['schema_db']}"
+            elif db_type == 'POSTGRES':
+                # postgresql://user:password@host:port/dbname
+                uri = f"postgresql://{data['username']}:{data['password']}@{data['host']}:{data['port']}/{data['schema_db']}"
+            else:
+                return False, f"Unsupported database type: {db_type}"
+                
+            engine = create_engine(uri)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                
+            return True, "Connection Successful!"
+            
+        except Exception as e:
+            return False, str(e)

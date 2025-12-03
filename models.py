@@ -27,6 +27,7 @@ class EtlTemplate(db.Model):
 class EtlConnection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='UNUSED') # SOURCE, TARGET, UNUSED
     type = db.Column(db.String(20), nullable=False) # ORACLE, POSTGRES
     host = db.Column(db.String(200), nullable=False)
     port = db.Column(db.Integer, nullable=False)

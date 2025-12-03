@@ -1,6 +1,6 @@
 from app import app, db
 from flask import render_template, request, jsonify, redirect, url_for, flash
-from models import EtlMetadata, EtlMapping, EtlTemplate, EtlDagHistory
+from models import EtlMetadata, EtlMapping, EtlTemplate, EtlDagHistory, EtlConnection
 
 from services.metadata_service import MetadataService
 
@@ -107,10 +107,16 @@ from services.connection_service import ConnectionService
 def connections():
     service = ConnectionService()
     if request.method == 'POST':
-        action = request.form.get('action')
+        action = None
+        if request.is_json:
+            action = request.json.get('action')
+        
+        if not action:
+            action = request.form.get('action')
         if action == 'create':
             data = {
                 'name': request.form.get('name'),
+                'role': request.form.get('role'),
                 'type': request.form.get('type'),
                 'host': request.form.get('host'),
                 'port': request.form.get('port'),
@@ -125,7 +131,25 @@ def connections():
         elif action == 'test':
             # For AJAX test
             data = request.json
-            success, message = service.test_connection(data)
+            if 'id' in data:
+                # Test existing connection
+                conn = EtlConnection.query.get(data['id'])
+                if conn:
+                    test_data = {
+                        'type': conn.type,
+                        'host': conn.host,
+                        'port': conn.port,
+                        'schema_db': conn.schema_db,
+                        'username': conn.username,
+                        'password': conn.password
+                    }
+                    success, message = service.test_connection(test_data)
+                else:
+                    success, message = False, "Connection not found"
+            else:
+                # Test new connection data (if needed in future)
+                success, message = service.test_connection(data)
+                
             return jsonify({"success": success, "message": message})
             
         return redirect(url_for('connections'))
