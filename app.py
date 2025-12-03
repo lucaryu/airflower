@@ -1,6 +1,18 @@
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 import os
+import sys
+import pypyodbc
+
+# Patch pypyodbc to look like pyodbc for SQLAlchemy
+sys.modules['pyodbc'] = pypyodbc
+
+from flask import Flask, render_template
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.dialects import registry
+
+# Register oracle.pypyodbc to use the oracle.pyodbc dialect
+registry.register("oracle.pypyodbc", "sqlalchemy.dialects.oracle.pyodbc", "OracleDialect_pyodbc")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev_key_secret'

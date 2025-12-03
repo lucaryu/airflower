@@ -1,8 +1,21 @@
 {
-    "db_type": "sqlite",
-    "host": "",
-    "port": "",
-    "username": "",
-    "password": "",
-    "schema_db": "etl_metadata.db"
+    "active_profile": "Default",
+    "profiles": {
+        "Default": {
+            "db_type": "sqlite",
+            "host": "",
+            "port": "",
+            "username": "",
+            "password": "",
+            "schema_db": "etl_metadata.db"
+        },
+        "oracle": {
+            "db_type": "oracle",
+            "host": "192.168.219.101",
+            "port": "1521",
+            "username": "system",
+            "password": "youwin83.",
+            "schema_db": "FREE"
+        }
+    }
 }

@@ -138,8 +138,11 @@ from config_manager import ConfigManager
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
-        db_type = request.form.get('db_type')
+        action = request.form.get('action')
+        profile_name = request.form.get('profile_name')
         
+        # Common config data collection
+        db_type = request.form.get('db_type')
         config_data = {
             "db_type": db_type,
             "host": request.form.get('host'),
@@ -147,30 +150,59 @@ def settings():
             "username": request.form.get('username'),
             "password": request.form.get('password')
         }
-        
         if db_type == 'sqlite':
             config_data['schema_db'] = request.form.get('schema_db_file')
         else:
             config_data['schema_db'] = request.form.get('schema_db_net')
-            
-        if ConfigManager.save_config(config_data):
-            # Hot reload the DB connection
-            new_uri = ConfigManager.get_db_uri(config_data)
-            app.config['SQLALCHEMY_DATABASE_URI'] = new_uri
-            
-            # Dispose of the old engine to force a new connection on next request
-            try:
-                db.engine.dispose()
-                print(f"DEBUG: Database connection reloaded to {new_uri}")
-            except Exception as e:
-                print(f"ERROR: Failed to dispose engine: {e}")
+
+        if action == 'save':
+            # Save to currently selected profile (passed as hidden field or inferred)
+            # For simplicity, let's assume 'profile_name' is the target
+            if ConfigManager.save_profile(profile_name, config_data):
+                flash(f'Profile "{profile_name}" saved successfully!', 'success')
                 
-            flash('Settings saved successfully!', 'success')
-            
+        elif action == 'save_as':
+            new_name = request.form.get('new_profile_name')
+            if new_name:
+                if ConfigManager.save_profile(new_name, config_data):
+                    flash(f'Profile "{new_name}" created successfully!', 'success')
+                    # Optionally switch to it?
+                    
+        elif action == 'activate':
+            if ConfigManager.set_active_profile(profile_name):
+                # Hot reload logic
+                new_uri = ConfigManager.get_db_uri() # Uses active profile
+                app.config['SQLALCHEMY_DATABASE_URI'] = new_uri
+                try:
+                    db.engine.dispose()
+                    print(f"DEBUG: Database connection reloaded to {new_uri}")
+                except Exception as e:
+                    print(f"ERROR: Failed to dispose engine: {e}")
+                flash(f'Profile "{profile_name}" activated!', 'success')
+                
+        elif action == 'delete':
+            if ConfigManager.delete_profile(profile_name):
+                flash(f'Profile "{profile_name}" deleted.', 'warning')
+
         return redirect(url_for('settings'))
 
-    config = ConfigManager.load_config()
-    return render_template('settings.html', config=config)
+    # GET request
+    profiles = ConfigManager.get_profiles()
+    active_profile_name = ConfigManager.get_active_profile_name()
+    
+    # We need to know which profile is "selected" for viewing/editing.
+    # Default to active profile if not specified via query param.
+    selected_profile_name = request.args.get('profile', active_profile_name)
+    if selected_profile_name not in profiles:
+        selected_profile_name = active_profile_name
+        
+    selected_config = profiles.get(selected_profile_name)
+    
+    return render_template('settings.html', 
+                         profiles=profiles, 
+                         active_profile_name=active_profile_name,
+                         selected_profile_name=selected_profile_name,
+                         config=selected_config)
 
 @app.route('/settings/test', methods=['POST'])
 def test_settings_connection():
