@@ -4,7 +4,8 @@
 <div class="row">
     <!-- Left Column: Source Table List -->
     <div class="col-md-4">
-        <h3>Source Table</h3>
+        <h3>Source Table <span class="badge bg-info text-dark" style="font-size: 0.6em;">{{ source_conn_name }}</span>
+        </h3>
         <div class="mb-3">
             <input type="text" id="sourceSearch" class="form-control" placeholder="Search source tables...">
         </div>
@@ -38,7 +39,8 @@
 
     <!-- Right Column: Target Tables -->
     <div class="col-md-4">
-        <h3>Target Table</h3>
+        <h3>Target Table <span class="badge bg-info text-dark" style="font-size: 0.6em;">{{ target_conn_name }}</span>
+        </h3>
         <div class="mb-3">
             <input type="text" id="targetSearch" class="form-control" placeholder="Search target tables...">
         </div>

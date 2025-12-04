@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Connections</h2>
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addConnectionModal">
+    <button type="button" class="btn btn-primary" onclick="openAddModal()">
         <i class="fas fa-plus me-2"></i>Add Connection
     </button>
 </div>
@@ -35,6 +35,12 @@
                 </p>
             </div>
             <div class="card-footer bg-transparent border-top-0 d-flex justify-content-end gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="openEditModal(this)" data-id="{{ conn.id }}"
+                    data-name="{{ conn.name }}" data-role="{{ conn.role }}" data-type="{{ conn.type }}"
+                    data-host="{{ conn.host }}" data-port="{{ conn.port }}" data-schema="{{ conn.schema_db }}"
+                    data-username="{{ conn.username }}" data-password="{{ conn.password }}">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
                 <button class="btn btn-sm btn-outline-success" onclick="testConnection('{{ conn.id }}')">
                     <i class="fas fa-plug"></i> Test
                 </button>
@@ -56,17 +62,18 @@
     {% endfor %}
 </div>
 
-<!-- Add Connection Modal -->
-<div class="modal fade" id="addConnectionModal" tabindex="-1">
+<!-- Connection Modal -->
+<div class="modal fade" id="connectionModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Connection</h5>
+                <h5 class="modal-title" id="connectionModalLabel">Add New Connection</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="/connections">
+            <form method="POST" action="/connections" id="connectionForm">
                 <div class="modal-body">
-                    <input type="hidden" name="action" value="create">
+                    <input type="hidden" name="action" id="connectionAction" value="create">
+                    <input type="hidden" name="id" id="connectionId">
                     <div class="mb-3">
                         <label class="form-label">Connection Name</label>
                         <input type="text" name="name" class="form-control" required placeholder="e.g. Prod Oracle DB">
@@ -79,12 +86,20 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select name="role" class="form-select" required>
-                            <option value="UNUSED">Unused</option>
-                            <option value="SOURCE">Source</option>
-                            <option value="TARGET">Target</option>
-                        </select>
+                        <label class="form-label d-block">Role</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="role" id="roleSource" value="SOURCE"
+                                autocomplete="off">
+                            <label class="btn btn-outline-primary" for="roleSource">Source</label>
+
+                            <input type="radio" class="btn-check" name="role" id="roleTarget" value="TARGET"
+                                autocomplete="off">
+                            <label class="btn btn-outline-warning text-dark" for="roleTarget">Target</label>
+
+                            <input type="radio" class="btn-check" name="role" id="roleUnused" value="UNUSED"
+                                autocomplete="off" checked>
+                            <label class="btn btn-outline-secondary" for="roleUnused">Unused</label>
+                        </div>
                     </div>
                     <div class="row g-2">
                         <div class="col-md-8">
@@ -111,6 +126,7 @@
                     <div class="mb-3">
                         <label class="form-label">Password</label>
                         <input type="password" name="password" class="form-control" required>
+                        <div class="form-text">Leave blank to keep existing password when editing.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -144,6 +160,60 @@
 </div>
 
 <script>
+    let connectionModal;
+
+    function getConnectionModal() {
+        if (!connectionModal) {
+            connectionModal = new bootstrap.Modal(document.getElementById('connectionModal'));
+        }
+        return connectionModal;
+    }
+
+    function openAddModal() {
+        const modal = getConnectionModal();
+        document.getElementById('connectionForm').reset();
+        document.getElementById('connectionAction').value = 'create';
+        document.getElementById('connectionId').value = '';
+        document.getElementById('connectionModalLabel').textContent = 'Add New Connection';
+
+        // Default to Unused
+        document.getElementById('roleUnused').checked = true;
+
+        // Required password for new
+        document.querySelector('input[name="password"]').required = true;
+
+        modal.show();
+    }
+
+    function openEditModal(btn) {
+        const modal = getConnectionModal();
+        document.getElementById('connectionForm').reset();
+        document.getElementById('connectionAction').value = 'update';
+        document.getElementById('connectionId').value = btn.dataset.id;
+        document.getElementById('connectionModalLabel').textContent = 'Edit Connection';
+
+        // Set fields
+        document.querySelector('input[name="name"]').value = btn.dataset.name;
+        document.querySelector('select[name="type"]').value = btn.dataset.type;
+        document.querySelector('input[name="host"]').value = btn.dataset.host;
+        document.querySelector('input[name="port"]').value = btn.dataset.port;
+        document.querySelector('input[name="schema_db"]').value = btn.dataset.schema;
+        document.querySelector('input[name="username"]').value = btn.dataset.username;
+
+        // Password not required for edit
+        const pwdInput = document.querySelector('input[name="password"]');
+        pwdInput.value = btn.dataset.password;
+        pwdInput.required = false;
+
+        // Set Role
+        const role = btn.dataset.role;
+        if (role === 'SOURCE') document.getElementById('roleSource').checked = true;
+        else if (role === 'TARGET') document.getElementById('roleTarget').checked = true;
+        else document.getElementById('roleUnused').checked = true;
+
+        modal.show();
+    }
+
     function testConnection(id) {
         const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
         const contentDiv = document.getElementById('testResultContent');

@@ -1,32 +1,184 @@
 import json
 from datetime import datetime
-from models import db, EtlMetadata
+from models import db, EtlMetadata, EtlConnection
+from sqlalchemy import create_engine, text, inspect
 
 class MetadataService:
-    def get_source_tables(self):
-        # TODO: Connect to actual Oracle DB and fetch tables
-        # Mock data for now
-        return [
-            {"table_name": "EMP", "columns": [
-                {"name": "EMPNO", "type": "NUMBER(4)", "pk": True, "nullable": False},
-                {"name": "ENAME", "type": "VARCHAR2(10)", "pk": False, "nullable": True},
-                {"name": "JOB", "type": "VARCHAR2(9)", "pk": False, "nullable": True},
-                {"name": "MGR", "type": "NUMBER(4)", "pk": False, "nullable": True},
-                {"name": "HIREDATE", "type": "DATE", "pk": False, "nullable": True},
-                {"name": "SAL", "type": "NUMBER(7,2)", "pk": False, "nullable": True},
-                {"name": "COMM", "type": "NUMBER(7,2)", "pk": False, "nullable": True},
-                {"name": "DEPTNO", "type": "NUMBER(2)", "pk": False, "nullable": True}
-            ]},
-            {"table_name": "DEPT", "columns": [
-                {"name": "DEPTNO", "type": "NUMBER(2)", "pk": True, "nullable": False},
-                {"name": "DNAME", "type": "VARCHAR2(14)", "pk": False, "nullable": True},
-                {"name": "LOC", "type": "VARCHAR2(13)", "pk": False, "nullable": True}
-            ]}
-        ]
+    def _get_connection_by_role(self, role):
+        return EtlConnection.query.filter_by(role=role).order_by(EtlConnection.id.desc()).first()
 
-    def get_target_tables(self):
-        # Fetch from local metadata DB (Postgres/Target definitions)
-        # Order by ID desc to get latest first
+    def get_active_connection_name(self, role):
+        conn = self._get_connection_by_role(role)
+        return conn.name if conn else "No Connection"
+
+    def _get_engine(self, conn_data):
+        if not conn_data: return None
+        
+        db_type = conn_data.type.upper()
+        uri = ""
+        if db_type == 'ORACLE':
+            uri = f"oracle+oracledb://{conn_data.username}:{conn_data.password}@{conn_data.host}:{conn_data.port}/?service_name={conn_data.schema_db}"
+        elif db_type == 'POSTGRES':
+            uri = f"postgresql://{conn_data.username}:{conn_data.password}@{conn_data.host}:{conn_data.port}/{conn_data.schema_db}"
+        
+        if uri:
+            return create_engine(uri)
+        return None
+
+    def create_sample_tables(self):
+        conn_data = self._get_connection_by_role('SOURCE')
+        if not conn_data or conn_data.type != 'ORACLE':
+            print("DEBUG: No Oracle Source connection found for sample creation.")
+            return
+
+        try:
+            engine = self._get_engine(conn_data)
+            with engine.connect() as conn:
+                # Check if EMP exists using SQL directly to be sure
+                # Or just try to create and catch error
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE EMP (
+                            EMPNO NUMBER(4) NOT NULL,
+                            ENAME VARCHAR2(10),
+                            JOB VARCHAR2(9),
+                            MGR NUMBER(4),
+                            HIREDATE DATE,
+                            SAL NUMBER(7,2),
+                            COMM NUMBER(7,2),
+                            DEPTNO NUMBER(2),
+                            CONSTRAINT PK_EMP PRIMARY KEY (EMPNO)
+                        )
+                    """))
+                    conn.execute(text("INSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('17-12-1980', 'DD-MM-YYYY'), 800, NULL, 20)"))
+                    conn.execute(text("INSERT INTO EMP VALUES (7499, 'ALLEN', 'SALESMAN', 7698, TO_DATE('20-02-1981', 'DD-MM-YYYY'), 1600, 300, 30)"))
+                    conn.commit()
+                    print("DEBUG: Created EMP table.")
+                except Exception as e:
+                    if 'ORA-00955' in str(e):
+                        print("DEBUG: EMP table already exists.")
+                    else:
+                        print(f"ERROR: Failed to create EMP: {e}")
+
+                try:
+                    conn.execute(text("""
+                        CREATE TABLE DEPT (
+                            DEPTNO NUMBER(2) NOT NULL,
+                            DNAME VARCHAR2(14),
+                            LOC VARCHAR2(13),
+                            CONSTRAINT PK_DEPT PRIMARY KEY (DEPTNO)
+                        )
+                    """))
+                    conn.execute(text("INSERT INTO DEPT VALUES (10, 'ACCOUNTING', 'NEW YORK')"))
+                    conn.execute(text("INSERT INTO DEPT VALUES (20, 'RESEARCH', 'DALLAS')"))
+                    conn.execute(text("INSERT INTO DEPT VALUES (30, 'SALES', 'CHICAGO')"))
+                    conn.execute(text("INSERT INTO DEPT VALUES (40, 'OPERATIONS', 'BOSTON')"))
+                    conn.commit()
+                    print("DEBUG: Created DEPT table.")
+                except Exception as e:
+                    if 'ORA-00955' in str(e):
+                        print("DEBUG: DEPT table already exists.")
+                    else:
+                        print(f"ERROR: Failed to create DEPT: {e}")
+                    
+        except Exception as e:
+            print(f"ERROR: Failed to connect for sample tables: {e}")
+
+    def get_source_tables(self):
+        conn_data = self._get_connection_by_role('SOURCE')
+        if not conn_data: return []
+
+        try:
+            engine = self._get_engine(conn_data)
+            # Use raw SQL for Oracle as Inspector is having issues
+            if conn_data.type == 'ORACLE':
+                return self._get_oracle_metadata(engine, conn_data.username.upper())
+            
+            # Fallback for others (or if we fix Inspector)
+            inspector = inspect(engine)
+            table_names = inspector.get_table_names()
+            tables = []
+            for t_name in table_names:
+                columns = []
+                for col in inspector.get_columns(t_name):
+                    columns.append({
+                        "name": col['name'],
+                        "type": str(col['type']),
+                        "pk": col.get('primary_key', False),
+                        "nullable": col.get('nullable', True)
+                    })
+                tables.append({"table_name": t_name, "columns": columns})
+            return tables
+        except Exception as e:
+            print(f"ERROR: Failed to fetch source tables: {e}")
+            return []
+
+    def _get_oracle_metadata(self, engine, schema):
+        tables = []
+        with engine.connect() as conn:
+            # Get Tables
+            t_result = conn.execute(text("SELECT table_name FROM all_tables WHERE owner = :schema ORDER BY table_name"), {"schema": schema})
+            table_names = [row[0] for row in t_result]
+            
+            for t_name in table_names:
+                # Get Columns
+                c_result = conn.execute(text("""
+                    SELECT column_name, data_type, nullable 
+                    FROM all_tab_columns 
+                    WHERE owner = :schema AND table_name = :table_name 
+                    ORDER BY column_id
+                """), {"schema": schema, "table_name": t_name})
+                
+                # Get PKs
+                pk_result = conn.execute(text("""
+                    SELECT cols.column_name
+                    FROM all_constraints cons
+                    JOIN all_cons_columns cols ON cons.constraint_name = cols.constraint_name AND cons.owner = cols.owner
+                    WHERE cons.owner = :schema 
+                    AND cons.table_name = :table_name 
+                    AND cons.constraint_type = 'P'
+                """), {"schema": schema, "table_name": t_name})
+                pks = [row[0] for row in pk_result]
+                
+                columns = []
+                for row in c_result:
+                    columns.append({
+                        "name": row[0],
+                        "type": row[1],
+                        "pk": row[0] in pks,
+                        "nullable": row[2] == 'Y'
+                    })
+                tables.append({"table_name": t_name, "columns": columns})
+        return tables
+
+    def get_real_target_tables(self):
+        conn_data = self._get_connection_by_role('TARGET')
+        if not conn_data: return []
+
+        try:
+            engine = self._get_engine(conn_data)
+            inspector = inspect(engine)
+            table_names = inspector.get_table_names()
+            
+            tables = []
+            for t_name in table_names:
+                columns = []
+                for col in inspector.get_columns(t_name):
+                    columns.append({
+                        "name": col['name'],
+                        "type": str(col['type']),
+                        "pk": col.get('primary_key', False),
+                        "nullable": col.get('nullable', True)
+                    })
+                # Format to match template expectation (schema_info as list of cols)
+                tables.append({"table_name": t_name, "schema_info": columns})
+            return tables
+        except Exception as e:
+            print(f"ERROR: Failed to fetch target tables: {e}")
+            return []
+
+    def get_target_tables_metadata(self):
+        # Renamed old method to distinguish from real DB fetch
         targets = EtlMetadata.query.filter_by(db_type='POSTGRES').order_by(EtlMetadata.id.desc()).all()
         
         unique_targets = {}

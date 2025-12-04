@@ -19,6 +19,23 @@ class ConnectionService:
         db.session.commit()
         return conn
 
+    def update_connection(self, id, data):
+        conn = EtlConnection.query.get(id)
+        if conn:
+            conn.name = data['name']
+            conn.role = data.get('role', 'UNUSED')
+            conn.type = data['type']
+            conn.host = data['host']
+            conn.port = int(data['port'])
+            conn.schema_db = data['schema_db']
+            conn.username = data['username']
+            if data.get('password'): # Only update password if provided
+                conn.password = data['password']
+            
+            db.session.commit()
+            return conn
+        return None
+
     def delete_connection(self, id):
         conn = EtlConnection.query.get(id)
         if conn:

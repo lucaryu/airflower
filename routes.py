@@ -28,9 +28,30 @@ def metadata():
         
         return redirect(url_for('metadata'))
                 
+        return redirect(url_for('metadata'))
+                
+    # Create sample tables if needed (Source Oracle)
+    service.create_sample_tables()
+    
     source_tables = service.get_source_tables()
-    target_tables = service.get_target_tables()
-    return render_template('metadata.html', source_tables=source_tables, target_tables=target_tables)
+    # Use real target tables from DB, or keep using metadata?
+    # User asked: "target DB from table search" -> implies real tables from Target DB.
+    # But the UI expects "target_tables" to be the ones we manage/delete.
+    # Actually, "Target Table" list in UI usually shows what we have defined/mapped.
+    # But user said: "search table in target DB".
+    # Let's show real tables from Target DB in the list, but maybe we need to distinguish 
+    # between "managed targets" and "all targets".
+    # For now, let's show ALL tables from Target DB as requested.
+    target_tables = service.get_real_target_tables()
+    
+    source_conn_name = service.get_active_connection_name('SOURCE')
+    target_conn_name = service.get_active_connection_name('TARGET')
+
+    return render_template('metadata.html', 
+                         source_tables=source_tables, 
+                         target_tables=target_tables,
+                         source_conn_name=source_conn_name,
+                         target_conn_name=target_conn_name)
 
 from services.mapping_service import MappingService
 
@@ -125,6 +146,19 @@ def connections():
                 'password': request.form.get('password')
             }
             service.save_connection(data)
+        elif action == 'update':
+            id = request.form.get('id')
+            data = {
+                'name': request.form.get('name'),
+                'role': request.form.get('role'),
+                'type': request.form.get('type'),
+                'host': request.form.get('host'),
+                'port': request.form.get('port'),
+                'schema_db': request.form.get('schema_db'),
+                'username': request.form.get('username'),
+                'password': request.form.get('password')
+            }
+            service.update_connection(id, data)
         elif action == 'delete':
             id = request.form.get('id')
             service.delete_connection(id)
