@@ -176,6 +176,10 @@
                     class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/mapping') }}">
                     <i class="fas fa-exchange-alt me-2"></i>Mapping
                 </a>
+                <a href="/mappings"
+                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/mappings') }}">
+                    <i class="fas fa-list me-2"></i>Mapping List
+                </a>
                 {% elif active_module == 'development' %}
                 <a href="/templates"
                     class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/templates') }}">

@@ -95,9 +95,16 @@ def mapping():
         data = request.json
         source_id = data.get('source_table_id')
         target_id = data.get('target_table_id')
+        mapping_type = data.get('mapping_type', '1:1')
         mappings = data.get('mappings')
         
-        map_service.save_mapping(source_id, target_id, mappings)
+        # Structure the data to include type
+        mapping_data = {
+            "type": mapping_type,
+            "mappings": mappings
+        }
+        
+        map_service.save_mapping(source_id, target_id, mapping_data)
         return jsonify({"status": "success"})
 
     # Fetch available source and target tables for the dropdowns
@@ -109,6 +116,32 @@ def mapping():
     targets = meta_service.get_real_target_tables()
     
     return render_template('mapping.html', sources=sources, targets=targets)
+
+@app.route('/mappings')
+def mapping_list():
+    map_service = MappingService()
+    mappings = map_service.get_mappings_with_names()
+    return render_template('mapping_list.html', mappings=mappings)
+
+@app.route('/mappings/delete/<int:id>', methods=['POST'])
+def delete_mapping(id):
+    map_service = MappingService()
+    if map_service.delete_mapping(id):
+        flash('Mapping deleted successfully.', 'success')
+    else:
+        flash('Error deleting mapping.', 'danger')
+    return redirect(url_for('mapping_list'))
+
+@app.route('/api/mappings/<int:id>')
+def get_mapping_details(id):
+    map_service = MappingService()
+    mapping = map_service.get_mapping(id)
+    if mapping:
+        return jsonify({
+            "status": "success",
+            "mapping": json.loads(mapping.mapping_json)
+        })
+    return jsonify({"status": "error", "message": "Mapping not found"}), 404
 
 from services.template_service import TemplateService
 

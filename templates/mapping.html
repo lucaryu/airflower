@@ -5,25 +5,33 @@
     <h2>Mapping Definition</h2>
 
     <div class="row mb-4 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <label class="form-label">Source Table</label>
             <select id="sourceSelect" class="form-select">
                 <option value="">Select Source...</option>
                 {% for s in sources %}
-                <option value="{{ s.table_name }}" data-cols='{{ s.columns | tojson }}'>{{ s.table_name }}</option>
+                <option value="{{ s.table_name }}" data-cols='{{ s.columns | tojson }}'
+                    data-comment="{{ s.comment or '' }}">{{ s.table_name }}</option>
                 {% endfor %}
             </select>
         </div>
-        <div class="col-md-1 text-center">
+        <div class="col-md-auto text-center px-0">
             <i class="bi bi-arrow-right fs-3"></i>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <label class="form-label">Target Table</label>
             <select id="targetSelect" class="form-select">
                 <option value="">Select Target...</option>
                 {% for t in targets %}
                 <option value="{{ t.table_name }}" data-cols='{{ t.schema_info | tojson }}'>{{ t.table_name }}</option>
                 {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Mapping Type</label>
+            <select id="mappingTypeSelect" class="form-select">
+                <option value="1:1">1:1</option>
+                <option value="N:1">N:1</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -33,8 +41,13 @@
 
     <div id="mappingArea" style="display:none;">
         <div class="card">
-            <div class="card-header bg-light">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Column Mappings</h5>
+                <div class="text-muted small">
+                    Source: <span id="selectedSourceInfo" class="fw-bold text-primary"></span>
+                    <span class="mx-2">|</span>
+                    Target: <span id="selectedTargetInfo" class="fw-bold text-success"></span>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -44,6 +57,7 @@
                                 <th colspan="5">Source Column</th>
                                 <th colspan="5">Target Column</th>
                                 <th colspan="2">Transformation Rule</th>
+                                <th>Remarks</th>
                             </tr>
                             <tr>
                                 <th>Name</th>
@@ -58,6 +72,7 @@
                                 <th>PK</th>
                                 <th style="width: 15%;">Rule</th>
                                 <th style="width: 20%;">Detail</th>
+                                <th>Remarks</th>
                             </tr>
                         </thead>
                         <tbody id="mappingTableBody">
@@ -71,88 +86,72 @@
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    // Removed global variables sourceCols/targetCols to avoid state issues
+    <script>
+        function generateMapping() {
+            const sourceSelect = document.getElementById('sourceSelect');
+            const targetSelect = document.getElementById('targetSelect');
+            const mappingType = document.getElementById('mappingTypeSelect').value;
 
-    function generateMapping() {
-        const sSelect = document.getElementById('sourceSelect');
-        const tSelect = document.getElementById('targetSelect');
-        const sVal = sSelect.value;
-        const tVal = tSelect.value;
+            const sourceOpt = sourceSelect.options[sourceSelect.selectedIndex];
+            const targetOpt = targetSelect.options[targetSelect.selectedIndex];
 
-        if (!sVal || !tVal) {
-            alert('Please select both Source and Target tables.');
-            return;
-        }
-
-        let sourceCols = [];
-        let targetCols = [];
-
-        try {
-            const sOpt = sSelect.options[sSelect.selectedIndex];
-            const tOpt = tSelect.options[tSelect.selectedIndex];
-
-            if (sOpt.getAttribute('data-cols')) {
-                sourceCols = JSON.parse(sOpt.getAttribute('data-cols'));
+            if (!sourceSelect.value || !targetSelect.value) {
+                alert('Please select both source and target tables.');
+                return;
             }
-            if (tOpt.getAttribute('data-cols')) {
-                targetCols = JSON.parse(tOpt.getAttribute('data-cols'));
-            }
-        } catch (e) {
-            console.error('Error parsing column data:', e);
-            alert('Error reading table metadata. Please refresh and try again.');
-            return;
-        }
 
-        document.getElementById('mappingArea').style.display = 'block';
-        const tbody = document.getElementById('mappingTableBody');
-        tbody.innerHTML = '';
+            document.getElementById('mappingArea').style.display = 'block';
 
-        // Auto-map based on Target columns
-        targetCols.forEach(tCol => {
-            // Find matching source column by name (case-insensitive)
-            const sCol = sourceCols.find(s => s.name.toUpperCase() === tCol.name.toUpperCase());
-            renderMappingRow(tCol, sCol);
-        });
-    }
+            // Update Info Header
+            const sourceComment = sourceOpt.getAttribute('data-comment');
+            document.getElementById('selectedSourceInfo').textContent = sourceSelect.value + (sourceComment ? ` (${sourceComment})` : '');
+            document.getElementById('selectedTargetInfo').textContent = targetSelect.value;
 
-    function renderMappingRow(tCol, sCol) {
-        const tbody = document.getElementById('mappingTableBody');
-        const tr = document.createElement('tr');
+            const allSourceCols = JSON.parse(sourceOpt.getAttribute('data-cols'));
+            const allTargetCols = JSON.parse(targetOpt.getAttribute('data-cols'));
 
-        // Source Column Cells
-        let sHtml = '';
-        if (sCol) {
-            sHtml = `
-                <td>${sCol.name} <input type="hidden" class="source-col-name" value="${sCol.name}"></td>
-                <td>${sCol.comment || ''}</td>
-                <td>${sCol.type}</td>
-                <td class="text-center">${sCol.nullable ? 'Y' : 'N'}</td>
-                <td class="text-center">${sCol.pk ? 'Y' : ''}</td>
+            const tbody = document.getElementById('mappingTableBody');
+            tbody.innerHTML = '';
+
+            allTargetCols.forEach(tCol => {
+                const tr = document.createElement('tr');
+
+                // Auto-match logic
+                let matchedSCol = allSourceCols.find(s => s.name.toUpperCase() === tCol.name.toUpperCase());
+
+                // Source Column Dropdown
+                let optionsHtml = '<option value="">(Select Source)</option>';
+                allSourceCols.forEach(col => {
+                    const isSelected = matchedSCol && matchedSCol.name === col.name ? 'selected' : '';
+                    optionsHtml += `<option value="${col.name}" ${isSelected} data-type="${col.type}"
+                    data-null="${col.nullable ? 'Y' : 'N'}" data-pk="${col.pk ? 'Y' : ''}" data-comment="${col.comment || ''}">
+                    ${col.name}</option>`;
+                });
+
+                const sHtml = `
+            <td>
+                <select class="form-select form-select-sm source-col-select" onchange="updateSourceInfo(this)">
+                    ${optionsHtml}
+                </select>
+            </td>
+            <td class="s-comment">${matchedSCol ? (matchedSCol.comment || '') : ''}</td>
+            <td class="s-type">${matchedSCol ? matchedSCol.type : ''}</td>
+            <td class="s-null text-center">${matchedSCol ? (matchedSCol.nullable ? 'Y' : 'N') : ''}</td>
+            <td class="s-pk text-center">${matchedSCol ? (matchedSCol.pk ? 'Y' : '') : ''}</td>
             `;
-        } else {
-            sHtml = `
-                <td class="text-muted">(None) <input type="hidden" class="source-col-name" value=""></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-            `;
-        }
 
-        // Target Column Cells
-        const tHtml = `
+                // Target Column Cells
+                const tHtml = `
             <td>${tCol.name} <input type="hidden" class="target-col-name" value="${tCol.name}"></td>
             <td>${tCol.comment || ''}</td>
             <td>${tCol.type}</td>
             <td class="text-center">${tCol.nullable ? 'Y' : 'N'}</td>
             <td class="text-center">${tCol.pk ? 'Y' : ''}</td>
-        `;
+            `;
 
-        // Rule Cells
-        const ruleHtml = `
+                // Rule Cells
+                const ruleHtml = `
             <td>
                 <select class="form-select form-select-sm rule-type" onchange="toggleRuleInput(this)">
                     <option value="DIRECT">Direct Copy</option>
@@ -164,74 +163,97 @@
             <td>
                 <input type="text" class="form-control form-select-sm rule-input" style="display:none;" placeholder="">
             </td>
-        `;
+            <td>
+                <input type="text" class="form-control form-control-sm remarks-input" placeholder="Remarks">
+            </td>
+            `;
 
-        tr.innerHTML = sHtml + tHtml + ruleHtml;
-        tbody.appendChild(tr);
-    }
-
-    function toggleRuleInput(select) {
-        const input = select.closest('td').nextElementSibling.querySelector('input');
-        const val = select.value;
-
-        if (val === 'NVL') {
-            input.style.display = 'block';
-            input.placeholder = 'Default Value (e.g. 0)';
-        } else if (val === 'CUSTOM') {
-            input.style.display = 'block';
-            input.placeholder = 'SQL Expression';
-        } else if (val === 'MASKING') {
-            input.style.display = 'block';
-            input.placeholder = 'Masking Rule (e.g. *******)';
-        } else {
-            input.style.display = 'none';
-            input.value = '';
-        }
-    }
-
-    function saveMapping() {
-        const rows = document.querySelectorAll('#mappingTableBody tr');
-        const mappings = [];
-
-        rows.forEach(tr => {
-            const sCol = tr.querySelector('.source-col-name').value;
-            const tCol = tr.querySelector('.target-col-name').value;
-            const rule = tr.querySelector('.rule-type').value;
-            const detail = tr.querySelector('.rule-input').value;
-
-            if (tCol) {
-                mappings.push({
-                    source_column: sCol,
-                    target_column: tCol,
-                    rule_type: rule,
-                    rule_detail: detail
-                });
-            }
-        });
-
-        const data = {
-            source_table_id: document.getElementById('sourceSelect').value,
-            target_table_id: document.getElementById('targetSelect').value,
-            mappings: mappings
-        };
-
-        fetch('/mapping', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        })
-            .then(r => r.json())
-            .then(d => {
-                if (d.status === 'success') {
-                    alert('Mapping Saved Successfully!');
-                } else {
-                    alert('Error saving mapping: ' + (d.message || 'Unknown error'));
-                }
-            })
-            .catch(e => {
-                console.error(e);
-                alert('Error saving mapping');
+                tr.innerHTML = sHtml + tHtml + ruleHtml;
+                tbody.appendChild(tr);
             });
-    }
-</script>
-{% endblock %}
+        }
+
+        function updateSourceInfo(select) {
+            const tr = select.closest('tr');
+            const opt = select.options[select.selectedIndex];
+
+            if (select.value) {
+                tr.querySelector('.s-comment').textContent = opt.getAttribute('data-comment');
+                tr.querySelector('.s-type').textContent = opt.getAttribute('data-type');
+                tr.querySelector('.s-null').textContent = opt.getAttribute('data-null');
+                tr.querySelector('.s-pk').textContent = opt.getAttribute('data-pk');
+            } else {
+                tr.querySelector('.s-comment').textContent = '';
+                tr.querySelector('.s-type').textContent = '';
+                tr.querySelector('.s-null').textContent = '';
+                tr.querySelector('.s-pk').textContent = '';
+            }
+        }
+
+        function toggleRuleInput(select) {
+            const input = select.closest('td').nextElementSibling.querySelector('input');
+            const val = select.value;
+
+            if (val === 'NVL') {
+                input.style.display = 'block';
+                input.placeholder = 'Default Value (e.g. 0)';
+            } else if (val === 'CUSTOM') {
+                input.style.display = 'block';
+                input.placeholder = 'SQL Expression';
+            } else if (val === 'MASKING') {
+                input.style.display = 'block';
+                input.placeholder = 'Masking Rule (e.g. *******)';
+            } else {
+                input.style.display = 'none';
+                input.value = '';
+            }
+        }
+
+        function saveMapping() {
+            const rows = document.querySelectorAll('#mappingTableBody tr');
+            const mappings = [];
+
+            rows.forEach(tr => {
+                const sCol = tr.querySelector('.source-col-select').value;
+                const tCol = tr.querySelector('.target-col-name').value;
+                const rule = tr.querySelector('.rule-type').value;
+                const detail = tr.querySelector('.rule-input').value;
+
+                if (tCol) {
+                    mappings.push({
+                        source_column: sCol,
+                        target_column: tCol,
+                        rule_type: rule,
+                        rule_detail: detail,
+                        remarks: tr.querySelector('.remarks-input').value
+                    });
+                }
+            });
+
+            const data = {
+                source_table_id: document.getElementById('sourceSelect').value,
+                target_table_id: document.getElementById('targetSelect').value,
+                mapping_type: document.getElementById('mappingTypeSelect').value,
+                mappings: mappings
+            };
+
+            fetch('/mapping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') {
+                        window.location.href = '/mappings';
+                    } else {
+                        alert('Error saving mapping: ' + (d.message || 'Unknown error'));
+                    }
+                })
+                .catch(e => {
+                    console.error(e);
+                    alert('Error saving mapping');
+                });
+        }
+    </script>
+    {% endblock %}
