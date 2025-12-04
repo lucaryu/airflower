@@ -131,7 +131,8 @@ class MetadataService:
                         "name": col['name'],
                         "type": str(col['type']),
                         "pk": col.get('primary_key', False),
-                        "nullable": col.get('nullable', True)
+                        "nullable": col.get('nullable', True),
+                        "comment": col.get('comment')
                     })
                 tables.append({"table_name": t_name, "columns": columns})
             return tables
@@ -212,7 +213,8 @@ class MetadataService:
                         "name": col['name'],
                         "type": str(col['type']),
                         "pk": col.get('primary_key', False),
-                        "nullable": col.get('nullable', True)
+                        "nullable": col.get('nullable', True),
+                        "comment": col.get('comment')
                     })
                 # Format to match template expectation (schema_info as list of cols)
                 tables.append({"table_name": t_name, "schema_info": columns})
