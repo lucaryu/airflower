@@ -253,26 +253,117 @@ class MetadataService:
         return new_target
 
     def create_target_from_source(self, source_table_name, source_columns):
+        # Force Uppercase for Table Name
+        source_table_name = source_table_name.upper()
+        
         # Convert Oracle types to Postgres types (Simple mapping)
         target_columns = []
         for col in source_columns:
             pg_type = self._map_oracle_to_postgres(col['type'])
             target_columns.append({
-                "name": col['name'],
+                "name": col['name'].upper(), # Force Uppercase for Column Name
                 "type": pg_type,
                 "pk": col['pk'],
-                "nullable": col['nullable']
+                "nullable": col['nullable'],
+                "comment": col.get('comment')
             })
         
-        return self.save_target_table(source_table_name, target_columns)
+        # Save metadata first
+        saved_target = self.save_target_table(source_table_name, target_columns)
+        
+        # Physical Creation
+        self.create_table_in_target_db(source_table_name, target_columns)
+        
+        return saved_target
+
+    def generate_target_ddl(self, table_name, columns):
+        # Generate DDL with formatting
+        # DROP TABLE "TABLE_NAME"
+        #
+        # CREATE TABLE "TABLE_NAME" 
+        # (
+        # 	"COL1" TYPE PK
+        #   , "COL2" TYPE
+        # )
+        
+        table_name_upper = table_name.upper()
+        ddl_parts = [f'DROP TABLE IF EXISTS "{table_name_upper}"', "", f'CREATE TABLE "{table_name_upper}" \n(']
+        
+        for i, col in enumerate(columns):
+            col_name = col['name'].upper()
+            col_type = col['type']
+            pk_str = " PRIMARY KEY" if col['pk'] else ""
+            
+            if i == 0:
+                # First column: Tab indentation
+                line = f'\t"{col_name}" {col_type}{pk_str}'
+            else:
+                # Subsequent columns: Comma alignment
+                line = f'  , "{col_name}" {col_type}{pk_str}'
+            
+            ddl_parts.append(line)
+            
+        ddl_parts.append(" )")
+        
+        return "\n".join(ddl_parts)
+
+    def generate_drop_ddl(self, table_name):
+        return f'DROP TABLE IF EXISTS "{table_name.upper()}"'
+
+    def create_table_in_target_db(self, table_name, columns):
+        conn_data = self._get_connection_by_role('TARGET')
+        if not conn_data:
+            print("ERROR: No Target connection found.")
+            return False
+            
+        try:
+            engine = self._get_engine(conn_data)
+            
+            ddl = self.generate_target_ddl(table_name, columns)
+            
+            with engine.connect() as conn:
+                # Drop if exists to allow recreation
+                conn.execute(text(f"DROP TABLE IF EXISTS {table_name.upper()}"))
+                
+                conn.execute(text(ddl))
+                conn.commit()
+                print(f"DEBUG: Created table {table_name} in Target DB.")
+                
+                # Add comments if available
+                for col in columns:
+                    if col.get('comment'):
+                        comment_sql = f"COMMENT ON COLUMN {table_name.upper()}.{col['name'].upper()} IS '{col['comment']}'"
+                        try:
+                            conn.execute(text(comment_sql))
+                        except Exception as ce:
+                            print(f"WARN: Failed to add comment for {col['name']}: {ce}")
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            print(f"ERROR: Failed to create table in Target DB: {e}")
+            return False
 
     def delete_target_table(self, table_name):
-        # Delete all versions/duplicates of this target table
-        print(f"DEBUG: Service deleting table: '{table_name}'")
+        # Physical Drop
+        conn_data = self._get_connection_by_role('TARGET')
+        if conn_data:
+            try:
+                engine = self._get_engine(conn_data)
+                with engine.connect() as conn:
+                    conn.execute(text(f"DROP TABLE IF EXISTS {table_name.upper()}"))
+                    conn.commit()
+                    print(f"DEBUG: Dropped table {table_name} from Target DB.")
+            except Exception as e:
+                print(f"ERROR: Failed to drop table {table_name}: {e}")
+
+        # Delete all versions/duplicates of this target table from metadata
+        print(f"DEBUG: Service deleting table metadata: '{table_name}'")
         deleted_count = EtlMetadata.query.filter_by(table_name=table_name, db_type='POSTGRES').delete()
         db.session.commit()
         print(f"DEBUG: Deleted count: {deleted_count}")
-        return deleted_count > 0
+        return True
 
     def _map_oracle_to_postgres(self, oracle_type):
         oracle_type = oracle_type.upper()

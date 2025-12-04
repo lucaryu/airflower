@@ -21,6 +21,32 @@ def metadata():
             source_data = next((t for t in sources if t['table_name'] == source_table), None)
             if source_data:
                 service.create_target_from_source(source_table, source_data['columns'])
+        elif action == 'generate_ddl':
+            source_table = request.form.get('source_table')
+            sources = service.get_source_tables()
+            source_data = next((t for t in sources if t['table_name'] == source_table), None)
+            if source_data:
+                # Convert to target columns first (to map types)
+                target_columns = []
+                for col in source_data['columns']:
+                    pg_type = service._map_oracle_to_postgres(col['type'])
+                    target_columns.append({
+                        "name": col['name'].upper(),
+                        "type": pg_type,
+                        "pk": col['pk'],
+                        "nullable": col['nullable'],
+                        "comment": col.get('comment')
+                    })
+                
+                ddl = service.generate_target_ddl(source_table, target_columns)
+                return jsonify({"status": "success", "ddl": ddl})
+            return jsonify({"status": "error", "message": "Source table not found"})
+        elif action == 'generate_drop_ddl':
+            target_table = request.form.get('target_table')
+            if target_table:
+                ddl = service.generate_drop_ddl(target_table)
+                return jsonify({"status": "success", "ddl": ddl})
+            return jsonify({"status": "error", "message": "Target table not specified"})
         elif action == 'delete_target':
             target_table = request.form.get('target_table').strip()
             print(f"DEBUG: Deleting target table: '{target_table}'")
@@ -43,6 +69,11 @@ def metadata():
     # between "managed targets" and "all targets".
     # For now, let's show ALL tables from Target DB as requested.
     target_tables = service.get_real_target_tables()
+    
+    # Check if source tables exist in target
+    target_table_names = {t['table_name'] for t in target_tables}
+    for st in source_tables:
+        st['exists_in_target'] = st['table_name'] in target_table_names
     
     source_conn_name = service.get_active_connection_name('SOURCE')
     target_conn_name = service.get_active_connection_name('TARGET')
@@ -75,7 +106,7 @@ def mapping():
     # Let's assume for this demo that we select by Name.
     
     sources = meta_service.get_source_tables()
-    targets = meta_service.get_target_tables()
+    targets = meta_service.get_real_target_tables()
     
     return render_template('mapping.html', sources=sources, targets=targets)
 

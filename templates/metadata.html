@@ -16,7 +16,12 @@
                 style="display: none;">
                 <div class="d-flex w-100 justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-1">{{ table.table_name }}</h5>
+                        <h5 class="mb-1">
+                            {{ table.table_name }}
+                            {% if table.exists_in_target %}
+                            <span class="badge bg-success" style="font-size: 0.6em;">존재함</span>
+                            {% endif %}
+                        </h5>
                         {% if table.comment %}
                         <small class="text-muted">{{ table.comment }}</small>
                         {% endif %}
@@ -59,13 +64,10 @@
                         <h5 class="mb-1">{{ table.table_name }}</h5>
                         <small class="text-muted">{{ table.schema_info | length }} columns</small>
                     </div>
-                    <form method="POST" action="/metadata" onsubmit="return confirm('Delete {{ table.table_name }}?');">
-                        <input type="hidden" name="action" value="delete_target">
-                        <input type="hidden" name="target_table" value="{{ table.table_name }}">
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
+                    <button type="button" class="btn btn-sm btn-outline-danger"
+                        onclick="previewDropDDL('{{ table.table_name }}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
             {% else %}
@@ -123,8 +125,8 @@
             <p class="card-text">
                 Target Status: 
                 ${targetExists ?
-                '<span class="badge bg-success">Exists</span>' :
-                '<span class="badge bg-secondary">Not Found</span>'}
+                '<span class="badge bg-success">존재함</span>' :
+                '<span class="badge bg-secondary">미존재</span>'}
             </p>
         `;
 
@@ -133,28 +135,16 @@
                 <div class="d-grid gap-2">
                     <a href="/mapping" class="btn btn-outline-primary">Go to Mapping</a>
                     <div class="btn-group" role="group">
-                        <form method="POST" action="/metadata" class="w-100" onsubmit="return confirm('Are you sure you want to recreate? This will overwrite the existing target schema.');">
-                            <input type="hidden" name="action" value="create_target">
-                            <input type="hidden" name="source_table" value="${tableName}">
-                            <button type="submit" class="btn btn-warning w-100">Recreate Target</button>
-                        </form>
-                        <form method="POST" action="/metadata" class="w-100" onsubmit="return confirm('Are you sure you want to delete this target table?');">
-                            <input type="hidden" name="action" value="delete_target">
-                            <input type="hidden" name="target_table" value="${tableName}">
-                            <button type="submit" class="btn btn-danger w-100">Delete Target</button>
-                        </form>
+                        <button type="button" class="btn btn-warning w-100" onclick="previewDDL('${tableName}')">Recreate Target</button>
+                        <button type="button" class="btn btn-danger w-100" onclick="previewDropDDL('${tableName}')">Delete Target</button>
                     </div>
                 </div>
             `;
         } else {
             actionHtml += `
-                <form method="POST" action="/metadata">
-                    <input type="hidden" name="action" value="create_target">
-                    <input type="hidden" name="source_table" value="${tableName}">
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Create Target Table</button>
-                    </div>
-                </form>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary" onclick="previewDDL('${tableName}')">Create Target Table</button>
+                </div>
             `;
         }
         document.getElementById('actionPanel').innerHTML = `<div class="card-body">${actionHtml}</div>`;
@@ -181,5 +171,108 @@
         colHtml += '</tbody></table>';
         document.getElementById('columnList').innerHTML = colHtml;
     }
+
+    function previewDDL(tableName) {
+        // Fetch DDL
+        const formData = new FormData();
+        formData.append('action', 'generate_ddl');
+        formData.append('source_table', tableName);
+
+        fetch('/metadata', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('ddlContent').textContent = data.ddl;
+
+                    // Configure Modal for Create
+                    document.getElementById('ddlModalTitle').textContent = 'Create Target Table Preview';
+
+                    // Hide Execute, Show Copy
+                    document.getElementById('executeBtn').style.display = 'none';
+
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.style.display = 'block';
+                    copyBtn.onclick = function () {
+                        navigator.clipboard.writeText(data.ddl).then(() => {
+                            alert('클립보드에 복사했어요.');
+                        });
+                    };
+
+                    document.getElementById('modalAction').value = 'create_target';
+                    document.getElementById('modalSourceTable').value = tableName;
+                    document.getElementById('modalTargetTable').value = '';
+
+                    new bootstrap.Modal(document.getElementById('ddlModal')).show();
+                } else {
+                    alert('Failed to generate DDL: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    function previewDropDDL(tableName) {
+        // Fetch Drop DDL
+        const formData = new FormData();
+        formData.append('action', 'generate_drop_ddl');
+        formData.append('target_table', tableName);
+
+        fetch('/metadata', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('ddlContent').textContent = data.ddl;
+
+                    // Configure Modal for Delete
+                    document.getElementById('ddlModalTitle').textContent = 'Delete Target Table Preview';
+
+                    // Hide Execute, Show Copy
+                    document.getElementById('executeBtn').style.display = 'none';
+
+                    const copyBtn = document.getElementById('copyBtn');
+                    copyBtn.style.display = 'block';
+                    copyBtn.onclick = function () {
+                        navigator.clipboard.writeText(data.ddl).then(() => {
+                            alert('클립보드에 복사했어요.');
+                        });
+                    };
+
+                    new bootstrap.Modal(document.getElementById('ddlModal')).show();
+                } else {
+                    alert('Failed to generate Drop DDL: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
 </script>
+
+<!-- DDL Preview Modal -->
+<div class="modal fade" id="ddlModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ddlModalTitle">DDL Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="ddlContent" class="bg-light p-3 border rounded"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="copyBtn" style="display: none;">Copy DDL</button>
+                <form method="POST" action="/metadata" style="display: inline;">
+                    <input type="hidden" name="action" id="modalAction">
+                    <input type="hidden" name="source_table" id="modalSourceTable">
+                    <input type="hidden" name="target_table" id="modalTargetTable">
+                    <button type="submit" class="btn btn-primary" id="executeBtn">Execute</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
