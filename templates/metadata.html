@@ -12,9 +12,15 @@
         <div class="list-group" id="sourceList" style="max-height: 600px; overflow-y: auto;">
             {% for table in source_tables %}
             <a href="#" class="list-group-item list-group-item-action source-item" data-name="{{ table.table_name }}"
-                onclick="selectSourceTable('{{ table.table_name }}')" style="display: none;">
+                data-comment="{{ table.comment or '' }}" onclick="selectSourceTable('{{ table.table_name }}')"
+                style="display: none;">
                 <div class="d-flex w-100 justify-content-between align-items-center">
-                    <h5 class="mb-1">{{ table.table_name }}</h5>
+                    <div>
+                        <h5 class="mb-1">{{ table.table_name }}</h5>
+                        {% if table.comment %}
+                        <small class="text-muted">{{ table.comment }}</small>
+                        {% endif %}
+                    </div>
                     <small class="text-muted">{{ table.columns | length }} columns</small>
                 </div>
             </a>
@@ -90,7 +96,12 @@
                 item.style.display = "none";
             } else {
                 const txt = item.getAttribute('data-name');
-                item.style.display = txt.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+                const comment = item.getAttribute('data-comment') || "";
+
+                const matchName = txt.toUpperCase().indexOf(filter) > -1;
+                const matchComment = comment.toUpperCase().indexOf(filter) > -1;
+
+                item.style.display = (matchName || matchComment) ? "" : "none";
             }
         });
     }
@@ -152,7 +163,7 @@
         let colHtml = `
             <table class="table table-sm table-hover mb-0">
                 <thead class="table-light">
-                    <tr><th>Col</th><th>Type</th><th>PK</th><th>Null</th></tr>
+                    <tr><th>Col</th><th>Desc</th><th>Type</th><th>PK</th><th>Null</th></tr>
                 </thead>
                 <tbody>
         `;
@@ -160,6 +171,7 @@
             colHtml += `
                 <tr>
                     <td>${col.name}</td>
+                    <td>${col.comment || ''}</td>
                     <td>${col.type}</td>
                     <td>${col.pk ? 'Y' : ''}</td>
                     <td>${col.nullable ? 'Y' : 'N'}</td>

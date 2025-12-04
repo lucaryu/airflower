@@ -52,11 +52,37 @@ class MetadataService:
                     """))
                     conn.execute(text("INSERT INTO EMP VALUES (7369, 'SMITH', 'CLERK', 7902, TO_DATE('17-12-1980', 'DD-MM-YYYY'), 800, NULL, 20)"))
                     conn.execute(text("INSERT INTO EMP VALUES (7499, 'ALLEN', 'SALESMAN', 7698, TO_DATE('20-02-1981', 'DD-MM-YYYY'), 1600, 300, 30)"))
+                    
+                    # Add Comments
+                    conn.execute(text("COMMENT ON TABLE EMP IS '사원정보'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.EMPNO IS '사원번호'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.ENAME IS '사원명'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.JOB IS '직무'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.MGR IS '관리자'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.HIREDATE IS '입사일'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.SAL IS '급여'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.COMM IS '성과급'"))
+                    conn.execute(text("COMMENT ON COLUMN EMP.DEPTNO IS '부서번호'"))
+                    
                     conn.commit()
-                    print("DEBUG: Created EMP table.")
+                    print("DEBUG: Created EMP table with comments.")
                 except Exception as e:
                     if 'ORA-00955' in str(e):
                         print("DEBUG: EMP table already exists.")
+                        # Try to add comments even if table exists (in case they are missing)
+                        try:
+                            conn.execute(text("COMMENT ON TABLE EMP IS '사원정보'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.EMPNO IS '사원번호'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.ENAME IS '사원명'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.JOB IS '직무'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.MGR IS '관리자'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.HIREDATE IS '입사일'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.SAL IS '급여'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.COMM IS '성과급'"))
+                            conn.execute(text("COMMENT ON COLUMN EMP.DEPTNO IS '부서번호'"))
+                            conn.commit()
+                        except:
+                            pass
                     else:
                         print(f"ERROR: Failed to create EMP: {e}")
 
@@ -116,17 +142,30 @@ class MetadataService:
     def _get_oracle_metadata(self, engine, schema):
         tables = []
         with engine.connect() as conn:
-            # Get Tables
-            t_result = conn.execute(text("SELECT table_name FROM all_tables WHERE owner = :schema ORDER BY table_name"), {"schema": schema})
-            table_names = [row[0] for row in t_result]
+            # Get Tables with Comments
+            t_result = conn.execute(text("""
+                SELECT t.table_name, c.comments 
+                FROM all_tables t
+                LEFT JOIN all_tab_comments c ON t.owner = c.owner AND t.table_name = c.table_name
+                WHERE t.owner = :schema 
+                ORDER BY t.table_name
+            """), {"schema": schema})
             
-            for t_name in table_names:
-                # Get Columns
+            table_rows = t_result.fetchall()
+            
+            for t_row in table_rows:
+                t_name = t_row[0]
+                t_comment = t_row[1]
+                
+                # Get Columns with Comments
                 c_result = conn.execute(text("""
-                    SELECT column_name, data_type, nullable 
-                    FROM all_tab_columns 
-                    WHERE owner = :schema AND table_name = :table_name 
-                    ORDER BY column_id
+                    SELECT c.column_name, c.data_type, c.nullable, com.comments
+                    FROM all_tab_columns c
+                    LEFT JOIN all_col_comments com ON c.owner = com.owner 
+                        AND c.table_name = com.table_name 
+                        AND c.column_name = com.column_name
+                    WHERE c.owner = :schema AND c.table_name = :table_name 
+                    ORDER BY c.column_id
                 """), {"schema": schema, "table_name": t_name})
                 
                 # Get PKs
@@ -146,9 +185,14 @@ class MetadataService:
                         "name": row[0],
                         "type": row[1],
                         "pk": row[0] in pks,
-                        "nullable": row[2] == 'Y'
+                        "nullable": row[2] == 'Y',
+                        "comment": row[3]
                     })
-                tables.append({"table_name": t_name, "columns": columns})
+                tables.append({
+                    "table_name": t_name, 
+                    "comment": t_comment,
+                    "columns": columns
+                })
         return tables
 
     def get_real_target_tables(self):
