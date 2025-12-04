@@ -128,25 +128,18 @@
                 '<span class="badge bg-success">존재함</span>' :
                 '<span class="badge bg-secondary">미존재</span>'}
             </p>
+            <div class="d-grid gap-2">
+                <a href="/mapping" class="btn btn-outline-primary ${!targetExists ? 'disabled' : ''}">Go to Mapping</a>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn ${targetExists ? 'btn-warning' : 'btn-primary'} w-100" onclick="previewDDL('${tableName}')">
+                        ${targetExists ? 'Recreate Target' : 'Create Target Table'}
+                    </button>
+                    <button type="button" class="btn btn-danger w-100 ${!targetExists ? 'disabled' : ''}" onclick="previewDropDDL('${tableName}')">
+                        Delete Target
+                    </button>
+                </div>
+            </div>
         `;
-
-        if (targetExists) {
-            actionHtml += `
-                <div class="d-grid gap-2">
-                    <a href="/mapping" class="btn btn-outline-primary">Go to Mapping</a>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-warning w-100" onclick="previewDDL('${tableName}')">Recreate Target</button>
-                        <button type="button" class="btn btn-danger w-100" onclick="previewDropDDL('${tableName}')">Delete Target</button>
-                    </div>
-                </div>
-            `;
-        } else {
-            actionHtml += `
-                <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-primary" onclick="previewDDL('${tableName}')">Create Target Table</button>
-                </div>
-            `;
-        }
         document.getElementById('actionPanel').innerHTML = `<div class="card-body">${actionHtml}</div>`;
 
         // Render Columns
