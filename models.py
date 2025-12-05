@@ -17,6 +17,9 @@ class EtlMapping(db.Model):
     mapping_json = db.Column(db.Text, nullable=False) # JSON storing column mappings and rules
     etl_cry_dtm = db.Column(db.DateTime, default=datetime.utcnow)
 
+    source_table = db.relationship('EtlMetadata', foreign_keys=[source_table_id])
+    target_table = db.relationship('EtlMetadata', foreign_keys=[target_table_id])
+
 class EtlTemplate(db.Model):
     __tablename__ = 'tb_etl_tmpl_mst'
     id = db.Column(db.Integer, primary_key=True)
@@ -42,4 +45,13 @@ class EtlDagHistory(db.Model):
     dag_id = db.Column(db.String(100), nullable=False)
     mapping_id = db.Column(db.Integer, db.ForeignKey('tb_etl_map_def.id'))
     generated_code = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class EtlUser(db.Model):
+    __tablename__ = 'tb_etl_user'
+    id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(50), nullable=False)
+    last_name = db.Column(db.String(50), nullable=False)
+    department = db.Column(db.String(100), nullable=False)
+    is_active = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

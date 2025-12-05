@@ -121,7 +121,8 @@
     {% endif %}
 
     <!-- Top Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top" style="z-index: 1030;">
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top"
+        style="z-index: 1030; background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%);">
         <div class="container-fluid">
             <a class="navbar-brand" href="/"><i class="fas fa-project-diagram me-2"></i>ETL Manager</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar">
@@ -173,7 +174,7 @@
                     <i class="fas fa-search me-2"></i>Table Search
                 </a>
                 <a href="/mapping"
-                    class="list-group-item list-group-item-action {{ 'active' if request.path.startswith('/mapping') }}">
+                    class="list-group-item list-group-item-action {{ 'active' if request.path == '/mapping' }}">
                     <i class="fas fa-exchange-alt me-2"></i>Mapping
                 </a>
                 <a href="/mappings"

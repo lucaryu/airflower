@@ -7,15 +7,20 @@ class MappingService:
     def get_mappings(self):
         return EtlMapping.query.all()
 
-    def get_mappings_with_names(self):
+    def get_mappings_with_names(self, source_filter=None, target_filter=None):
         SourceMeta = aliased(EtlMetadata)
         TargetMeta = aliased(EtlMetadata)
         
-        results = db.session.query(EtlMapping, SourceMeta.table_name, TargetMeta.table_name)\
+        query = db.session.query(EtlMapping, SourceMeta.table_name, TargetMeta.table_name)\
             .join(SourceMeta, EtlMapping.source_table_id == SourceMeta.id)\
-            .join(TargetMeta, EtlMapping.target_table_id == TargetMeta.id)\
-            .order_by(EtlMapping.id.desc())\
-            .all()
+            .join(TargetMeta, EtlMapping.target_table_id == TargetMeta.id)
+            
+        if source_filter:
+            query = query.filter(SourceMeta.table_name.ilike(f'%{source_filter}%'))
+        if target_filter:
+            query = query.filter(TargetMeta.table_name.ilike(f'%{target_filter}%'))
+            
+        results = query.order_by(EtlMapping.id.desc()).all()
             
         mappings = []
         for m, s_name, t_name in results:
@@ -28,7 +33,7 @@ class MappingService:
             })
         return mappings
 
-    def save_mapping(self, source_table, target_table, mapping_data):
+    def save_mapping(self, source_table, target_table, mapping_data, mapping_id=None):
         # source_table and target_table can be IDs (int) or Names (str)
         
         source_id = self._resolve_metadata_id(source_table, 'ORACLE')
@@ -37,6 +42,18 @@ class MappingService:
         if not source_id or not target_id:
             raise Exception("Could not resolve Source or Target table metadata.")
 
+        if mapping_id:
+            # Update existing
+            mapping = EtlMapping.query.get(mapping_id)
+            if mapping:
+                mapping.source_table_id = source_id
+                mapping.target_table_id = target_id
+                mapping.mapping_json = json.dumps(mapping_data)
+                mapping.etl_cry_dtm = datetime.utcnow() # Update timestamp
+                db.session.commit()
+                return mapping
+
+        # Create new
         new_mapping = EtlMapping(
             source_table_id=source_id,
             target_table_id=target_id,

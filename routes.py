@@ -1,4 +1,5 @@
 from app import app, db
+import json
 from flask import render_template, request, jsonify, redirect, url_for, flash
 from models import EtlMetadata, EtlMapping, EtlTemplate, EtlDagHistory, EtlConnection
 
@@ -97,6 +98,7 @@ def mapping():
         target_id = data.get('target_table_id')
         mapping_type = data.get('mapping_type', '1:1')
         mappings = data.get('mappings')
+        mapping_id = data.get('id') # Get ID if updating
         
         # Structure the data to include type
         mapping_data = {
@@ -104,7 +106,7 @@ def mapping():
             "mappings": mappings
         }
         
-        map_service.save_mapping(source_id, target_id, mapping_data)
+        map_service.save_mapping(source_id, target_id, mapping_data, mapping_id)
         return jsonify({"status": "success"})
 
     # Fetch available source and target tables for the dropdowns
@@ -119,9 +121,12 @@ def mapping():
 
 @app.route('/mappings')
 def mapping_list():
+    source_filter = request.args.get('source')
+    target_filter = request.args.get('target')
+    
     map_service = MappingService()
-    mappings = map_service.get_mappings_with_names()
-    return render_template('mapping_list.html', mappings=mappings)
+    mappings = map_service.get_mappings_with_names(source_filter, target_filter)
+    return render_template('mapping_list.html', mappings=mappings, source_filter=source_filter, target_filter=target_filter)
 
 @app.route('/mappings/delete/<int:id>', methods=['POST'])
 def delete_mapping(id):
@@ -135,11 +140,32 @@ def delete_mapping(id):
 @app.route('/api/mappings/<int:id>')
 def get_mapping_details(id):
     map_service = MappingService()
+    meta_service = MetadataService()
+    
     mapping = map_service.get_mapping(id)
     if mapping:
+        # Fetch live metadata to get column details
+        # Note: This might be slow if there are many tables. 
+        # In a production app, we should fetch only specific table metadata.
+        source_tables = meta_service.get_source_tables()
+        target_tables = meta_service.get_real_target_tables()
+        
+        source_info = next((t for t in source_tables if t['table_name'] == mapping.source_table.table_name), None)
+        target_info = next((t for t in target_tables if t['table_name'] == mapping.target_table.table_name), None)
+        
+        # Normalize column data
+        source_cols = source_info['columns'] if source_info else []
+        target_cols = target_info['schema_info'] if target_info else [] # get_real_target_tables uses schema_info
+        
         return jsonify({
             "status": "success",
-            "mapping": json.loads(mapping.mapping_json)
+            "mapping": json.loads(mapping.mapping_json),
+            "source_table_id": mapping.source_table_id,
+            "target_table_id": mapping.target_table_id,
+            "source_table_name": mapping.source_table.table_name,
+            "target_table_name": mapping.target_table.table_name,
+            "source_columns": source_cols,
+            "target_columns": target_cols
         })
     return jsonify({"status": "error", "message": "Mapping not found"}), 404
 
@@ -256,6 +282,7 @@ def connections():
     return render_template('connections.html', connections=connections)
 
 from config_manager import ConfigManager
+from services.user_service import UserService
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -305,12 +332,41 @@ def settings():
         elif action == 'delete':
             if ConfigManager.delete_profile(profile_name):
                 flash(f'Profile "{profile_name}" deleted.', 'warning')
+                
+        # User Management Actions
+        elif action == 'create_user':
+            user_service = UserService()
+            first_name = request.form.get('first_name')
+            last_name = request.form.get('last_name')
+            department = request.form.get('department')
+            if first_name and last_name and department:
+                user_service.save_user(first_name, last_name, department)
+                flash('User added successfully.', 'success')
+            else:
+                flash('All user fields are required.', 'danger')
+                
+        elif action == 'activate_user':
+            user_service = UserService()
+            user_id = request.form.get('user_id')
+            if user_service.set_active_user(user_id):
+                flash('User activated.', 'success')
+                
+        elif action == 'delete_user':
+            user_service = UserService()
+            user_id = request.form.get('user_id')
+            if user_service.delete_user(user_id):
+                flash('User deleted.', 'warning')
 
         return redirect(url_for('settings'))
 
     # GET request
     profiles = ConfigManager.get_profiles()
     active_profile_name = ConfigManager.get_active_profile_name()
+    
+    # User Data
+    user_service = UserService()
+    users = user_service.get_all_users()
+    active_user = user_service.get_active_user()
     
     # We need to know which profile is "selected" for viewing/editing.
     # Default to active profile if not specified via query param.
@@ -324,7 +380,9 @@ def settings():
                          profiles=profiles, 
                          active_profile_name=active_profile_name,
                          selected_profile_name=selected_profile_name,
-                         config=selected_config)
+                         config=selected_config,
+                         users=users,
+                         active_user=active_user)
 
 @app.route('/settings/test', methods=['POST'])
 def test_settings_connection():

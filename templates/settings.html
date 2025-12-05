@@ -145,6 +145,90 @@
             </div>
         </div>
     </div>
+
+    <!-- User Management Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-users me-2"></i>User Management</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h5 class="card-title">Register New User</h5>
+                            <form method="POST" action="/settings">
+                                <input type="hidden" name="action" value="create_user">
+                                <div class="mb-3">
+                                    <label for="last_name" class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" id="last_name" name="last_name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="first_name" class="form-label">First Name</label>
+                                    <input type="text" class="form-control" id="first_name" name="first_name" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="department" class="form-label">Department (Team)</label>
+                                    <input type="text" class="form-control" id="department" name="department" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Add User</button>
+                            </form>
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="card-title">Registered Users</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Name</th>
+                                            <th>Department</th>
+                                            <th>Created At</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user in users %}
+                                        <tr class="{{ 'table-success' if user.is_active else '' }}">
+                                            <td>
+                                                {% if user.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ user.last_name }} {{ user.first_name }}</td>
+                                            <td>{{ user.department }}</td>
+                                            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                            <td>
+                                                {% if not user.is_active %}
+                                                <form method="POST" action="/settings" class="d-inline">
+                                                    <input type="hidden" name="action" value="activate_user">
+                                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-success">Activate</button>
+                                                </form>
+                                                {% endif %}
+                                                <form method="POST" action="/settings" class="d-inline" onsubmit="return confirm('Delete this user?');">
+                                                    <input type="hidden" name="action" value="delete_user">
+                                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">No users registered.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- New Profile Modal -->

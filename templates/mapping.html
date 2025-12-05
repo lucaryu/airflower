@@ -230,7 +230,11 @@
                 }
             });
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const mappingId = urlParams.get('id');
+
             const data = {
+                id: mappingId ? mappingId : null,
                 source_table_id: document.getElementById('sourceSelect').value,
                 target_table_id: document.getElementById('targetSelect').value,
                 mapping_type: document.getElementById('mappingTypeSelect').value,
@@ -253,6 +257,72 @@
                 .catch(e => {
                     console.error(e);
                     alert('Error saving mapping');
+                });
+        }
+
+        // Check for edit mode on load
+        window.onload = function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mappingId = urlParams.get('id');
+            if (mappingId) {
+                loadMappingForEdit(mappingId);
+            }
+        };
+
+        function loadMappingForEdit(id) {
+            fetch(`/api/mappings/${id}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const mapping = data.mapping;
+
+                        // Set Source and Target
+                        document.getElementById('sourceSelect').value = data.source_table_name;
+                        document.getElementById('targetSelect').value = data.target_table_name;
+
+                        // Set Mapping Type
+                        if (mapping.type) {
+                            document.getElementById('mappingTypeSelect').value = mapping.type;
+                        }
+
+                        // Generate the table rows
+                        generateMapping();
+
+                        // Populate rows with saved data
+                        const rows = document.querySelectorAll('#mappingTableBody tr');
+                        const savedMappings = mapping.mappings;
+
+                        rows.forEach(tr => {
+                            const tCol = tr.querySelector('.target-col-name').value;
+                            const saved = savedMappings.find(m => m.target_column === tCol);
+
+                            if (saved) {
+                                // Set Source Column
+                                const sSelect = tr.querySelector('.source-col-select');
+                                sSelect.value = saved.source_column;
+                                updateSourceInfo(sSelect); // Update source details
+
+                                // Set Rule
+                                const rSelect = tr.querySelector('.rule-type');
+                                rSelect.value = saved.rule_type;
+                                toggleRuleInput(rSelect); // Show/hide input
+
+                                // Set Rule Detail
+                                const rInput = tr.querySelector('.rule-input');
+                                rInput.value = saved.rule_detail || '';
+
+                                // Set Remarks
+                                tr.querySelector('.remarks-input').value = saved.remarks || '';
+                            }
+                        });
+
+                    } else {
+                        alert('Error loading mapping: ' + data.message);
+                    }
+                })
+                .catch(e => {
+                    console.error(e);
+                    alert('Error loading mapping details');
                 });
         }
     </script>
